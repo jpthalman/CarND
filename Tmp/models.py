@@ -5,7 +5,7 @@ NanoDegree. If you have any question, feel free to email me at
 
 @author: Jacob Thalman
 """
-print
+
 import tensorflow as tf
 import numpy as np
 import math
@@ -81,7 +81,7 @@ class ConvNet(object):
             previously trained model.
     """
     
-    def __init__(self, learning_rate=0.01, batch_size=256, training_epochs=100, 
+    def __init__(self, learning_rate=0.001, batch_size=256, training_epochs=100, 
                  color_channels=1, image_shape=(32,32), n_classes=43, 
                  keep_prob=0.5):
         
