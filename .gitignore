@@ -1,0 +1,10 @@
+*.p
+*.ckpt
+*.zip
+*.tar
+*.gz
+*.pyc
+*.chk.meta
+
+.ipynb_checkpoints
+__pycache__
