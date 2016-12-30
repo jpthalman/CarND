@@ -7,11 +7,11 @@ NanoDegree. If you have any question, feel free to email me at
 """
 
 import tensorflow as tf
+import itertools
 import numpy as np
 import math
 import time
 import pandas as pd
-import seaborn as sn
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 
@@ -423,8 +423,42 @@ class ConvNet(object):
             else: y_shuffled.append(y[i,...])
         return (np.array(X_shuffled), np.array(y_shuffled))
     
-    @staticmethod
-    def _plt_confusion_matrix(labels, pred, normalize=False, size=(10,7)):
+#    @staticmethod
+#    def _plt_confusion_matrix(labels, pred, normalize=False, size=(10,7)):
+#        """
+#        Given one-hot encoded labels and preds, displays a confusion matrix.
+#        
+#        Arguments:
+#            `labels`: 
+#                The ground truth one-hot encoded labels.
+#            `pred`: 
+#                The one-hot encoded labels predicted by a model.
+#            `normalize`: 
+#                If True, divides every column of the confusion matrix
+#                by its sum. This is helpful when, for instance, there are 1000
+#                'A' labels and 5 'B' labels. Normalizing this set would
+#                make the color coding more meaningful and informative.
+#        """
+#        # De one-hot encode the labels
+#        labels_tmp,pred_tmp = [],[]
+#        for i in range(labels.shape[0]):
+#            labels_tmp.append(labels[i].argmax())
+#            pred_tmp.append(pred[i].argmax())
+#        labels, pred = np.array(labels_tmp), np.array(pred_tmp)
+#        
+#        n_classes = len(set(labels))
+#        cm = confusion_matrix(labels, pred)
+#        
+#        if normalize:
+#            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+#        
+#        df_cm = pd.DataFrame(cm, index = [i for i in np.arange(n_classes)],
+#                          columns = np.arange(n_classes))
+#        plt.figure(figsize=size)
+#        sn.heatmap(df_cm, annot=False)
+    
+    def _plt_confusion_matrix(self, labels, pred, normalize=False,
+                              title='Confusion matrix', cmap=plt.cm.Blues):
         """
         Given one-hot encoded labels and preds, displays a confusion matrix.
         
@@ -439,20 +473,30 @@ class ConvNet(object):
                 'A' labels and 5 'B' labels. Normalizing this set would
                 make the color coding more meaningful and informative.
         """
-        # De one-hot encode the labels
-        labels_tmp,pred_tmp = [],[]
-        for i in range(labels.shape[0]):
-            labels_tmp.append(labels[i].argmax())
-            pred_tmp.append(pred[i].argmax())
-        labels, pred = np.array(labels_tmp), np.array(pred_tmp)
-        
-        n_classes = len(set(labels))
         cm = confusion_matrix(labels, pred)
+        classes = np.arange(self.n_classes)
         
+        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.title(title)
+        plt.colorbar()
+        tick_marks = np.arange(len(classes))
+        plt.xticks(tick_marks, classes, rotation=45)
+        plt.yticks(tick_marks, classes)
+    
         if normalize:
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        
-        df_cm = pd.DataFrame(cm, index = [i for i in np.arange(n_classes)],
-                          columns = np.arange(n_classes))
-        plt.figure(figsize=size)
-        sn.heatmap(df_cm, annot=False)
+            print("Normalized confusion matrix")
+        else:
+            print('Confusion matrix, without normalization')
+    
+        print(cm)
+    
+        thresh = cm.max() / 2.
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            plt.text(j, i, cm[i, j],
+                     horizontalalignment="center",
+                     color="white" if cm[i, j] > thresh else "black")
+    
+        plt.tight_layout()
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
