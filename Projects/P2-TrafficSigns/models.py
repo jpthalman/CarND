@@ -434,6 +434,12 @@ class ConvNet(object):
         cm = confusion_matrix(labels, pred)
         classes = np.arange(self.n_classes)
         
+        if normalize:
+            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+            print("Normalized confusion matrix")
+        else:
+            print('Confusion matrix, without normalization')
+        
         plt.figure(figsize=(9,7))
         plt.imshow(cm, interpolation='nearest', aspect='auto', cmap=cmap)
         plt.title(title)
@@ -441,13 +447,7 @@ class ConvNet(object):
         tick_marks = np.arange(len(classes))
         plt.xticks(tick_marks, classes, rotation=45)
         plt.yticks(tick_marks, classes)
-    
-        if normalize:
-            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-            print("Normalized confusion matrix")
-        else:
-            print('Confusion matrix, without normalization')
-    
+        
         plt.tight_layout()
         plt.ylabel('True label')
         plt.xlabel('Predicted label')
