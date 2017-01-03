@@ -209,7 +209,7 @@ class ConvNet(object):
                 c = np.mean(acc)                
                 diff = c - last_acc
                 
-                print('\r', "Epoch: %04d | Validation Accuracy: %2.9f | Change: %2.9f" 
+                print('\r', "Epoch: %04d | Validation Accuracy: %2.4f | Change: %2.4f" 
                       % (epoch+1, c, diff), end='')
                 
                 if c > threshold:
