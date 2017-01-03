@@ -7,11 +7,9 @@ NanoDegree. If you have any question, feel free to email me at
 """
 
 import tensorflow as tf
-import itertools
 import numpy as np
 import math
 import time
-import pandas as pd
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 
@@ -43,21 +41,25 @@ class ConvNet(object):
             The max size of each batch to split the dataset into.
             The last batch will usually be smaller than this, unless
             n_obs % batch_size == 0.
-        `training_epochs`: 
-            The maximum number of training iterations over the training 
-            data.
-        `threshold`: 
-            Cutoff threshold for the loss during training.
-        `color_channels`: 
-            The number of color channels in the input images.
-        `image_shape`: 
-            The shape of the input images. Tuple with entries
-            (Length, Width).
-        `n_classes`: 
-            The number of class labels.
         `keep_prob`: 
             If a dropout layer is used, this value will be used as the 
             probability of keeping each weight.
+    
+    Attributes:
+        `train_time`: 
+            
+        `image_shape`:
+            
+        `n_classes`:
+            
+        `layer_depths`:
+            
+        `weights`:
+            
+        `biases`:
+            
+        `LOGITS`:
+            
     
     Layers:
         `conv2d`: 
@@ -81,31 +83,34 @@ class ConvNet(object):
             previously trained model.
     """
     
-    def __init__(self, learning_rate=0.001, batch_size=256, training_epochs=100, 
-                 color_channels=1, image_shape=(32,32), n_classes=43, 
-                 keep_prob=0.5):
+    def __init__(self, learning_rate=0.001, batch_size=256, keep_prob=0.5,
+                 image_shape=(32,32), color_channels=1, n_classes=43):
         
         self.LEARNING_RATE = learning_rate
         self.BATCH_SIZE = batch_size
-        self.TRAINING_EPOCHS = training_epochs
-        
+        self.color_channels = color_channels
         self.image_shape = image_shape
         self.n_classes = n_classes
         self.train_time = None
         
-        self.DATA = tf.placeholder(tf.float32, 
-                        [None, image_shape[0], image_shape[1], color_channels])
-        self.LABELS = tf.placeholder(tf.float32, [None, n_classes])
-        self.DROPOUT = tf.placeholder(tf.float32)
-        self.KEEP_PROB = keep_prob
+        self._data = self._data = tf.placeholder(tf.float32, 
+                [None, image_shape[0], image_shape[1], color_channels],
+                name='data')
+        self._labels = tf.placeholder(tf.float32, 
+                [None, n_classes], 
+                name='labels')
         
-        self.last_layer = 'INPUT'
+        self._dropout = tf.placeholder(tf.float32, name='dropout')
+        self._keep_prob = keep_prob
+        self._last_layer = 'INPUT'
+        
         self.layer_depths = {'INPUT': color_channels}
         self.weights = {}
         self.biases = {}
         self.LOGITS = None
     
-    def train(self, train, val, threshold=0.99, save_loc='Checkpoints/model.ckpt',
+    def train(self, train, val, training_epochs=100, l2_beta=0.001,
+              threshold=0.99, save_loc='Checkpoints/model.ckpt', 
               OPTIMIZER=tf.train.AdamOptimizer):
         """
         Trains the current model with the given training data.
@@ -120,86 +125,91 @@ class ConvNet(object):
             `val`: 
                 The validation dataset. Must be a tuple with values
                 (Validation_Data, Validation_Labels).
+            `training_epochs`:
+                The maximum number of full runs through the training dataset.
             `threshold`: 
-                If abs(validation_loss_Epoch_i - validation_loss_Epoch_i+1) is
-                less than this threshold, stop training.
+                If the validation accuracy goes above this threshold, stop 
+                training. Default is 0.99.
+            `l2_beta`:
+                Constant multiplier for l2 regularization terms. Default is 
+                0.001. Set to 0 to remove l2 regularization.
             `save_loc`: 
                 The location to save the weights for the model.
             `OPTIMIZER`: 
-                The optimization algorithm to use.
-        
-        Attributes:
-            `runtime`:
-                After training, you can access the time it took to converge via
-                `MODEL.train.runtime`. This value is stored in seconds.
+                The tensorflow optimization algorithm to use. Default is 
+                `tf.train.AdamOptimizer`.
         """
         if self.LOGITS is None:
             raise ValueError('Add some layers!')
         
+        # Split inputs into images and labels
         X_train, y_train = train
         X_val, y_val = val
         
-        observed_color_channels = X_train.shape[3]
-        n_observed_classes = y_train.shape[1]
+        # Ensure that input color channels match
+        assert X_train.shape[3] == self.color_channels and \
+               X_val.shape[3] == self.color_channels, "Color mismatch"
         
-        # Test inputs for validity
-        assert observed_color_channels == self.layer_depths['INPUT'], \
-            "Color mismatch"
-        assert n_observed_classes == self.n_classes, \
-            """
-            You specified a different number of classes than what was provided.
-            Make sure your labels are one-hot encoded.
-            """
+        # Ensure that train and val labels are equivalent and in the expected 
+        # format.
+        assert y_train.ndim > 1 and y_train.ndim == y_val.ndim, \
+               "Labels must be one-hot encoded"
+        assert y_train.shape[1] == y_val.shape[1], \
+               "Train and Val sets have different number of classes."
+        assert y_train.shape[1] == self.n_classes, \
+               "Different number of classes than what was specified"
         
-        # Add an output layer
+        # Add an output layer if one doesn't already exist
         if 'OUT' not in self.weights:
             self.fully_connected('OUT', self.n_classes, ACTIVATION=None)
         
         # Define loss and optimizer for training
         loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
                    self.LOGITS,
-                   self.LABELS))
+                   self._labels))
+        # Add l2 regularization to the loss
+        for key in list(self.weights.keys()):
+            loss += l2_beta * tf.nn.l2_loss(self.weights[key])
+        
         optimizer = OPTIMIZER(learning_rate=self.LEARNING_RATE).minimize(loss)
         
         correct_prediction = tf.equal(tf.argmax(self.LOGITS, 1), 
-                                      tf.argmax(self.LABELS, 1))
+                                      tf.argmax(self._labels, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        
-        # Really big number so that it does't stop training immediately
         last_acc = 0
-        init = tf.initialize_all_variables()
-	
-        print("Starting TensorFlow session...")
+        
+        init = tf.global_variables_initializer()
         
         with tf.Session() as sess:
+            print('Starting training process:')
+            
             sess.run(init)
             start_time = time.clock()
             
-            for epoch in range(self.TRAINING_EPOCHS):
+            for epoch in range(training_epochs):
                 # Train model over all batches
                 for batch_x, batch_y in self._batches(X_train, y_train):
                     sess.run(optimizer, 
-                             feed_dict={self.DATA: batch_x, 
-                                        self.LABELS: batch_y,
-                                        self.DROPOUT: self.KEEP_PROB})
+                             feed_dict={self._data: batch_x, 
+                                        self._labels: batch_y,
+                                        self._dropout: self._keep_prob})
                 
                 # Calculate accuracy over validation set
                 acc = []
                 for batch_x, batch_y in self._batches(X_val, y_val, shuffle=False):
                     acc.append(sess.run(accuracy, 
-                                        feed_dict={self.DATA: batch_x,
-                                                   self.LABELS: batch_y,
-                                                   self.DROPOUT: 1.0}))
-                c = np.mean(acc)
-                
-                if c > threshold:
-                    print("\nValidation accuracy reached!")
-                    break
-                
+                                        feed_dict={self._data: batch_x,
+                                                   self._labels: batch_y,
+                                                   self._dropout: 1.0}))
+                c = np.mean(acc)                
                 diff = c - last_acc
                 
-                print('\r', "Epoch: %04d | Accuracy: %2.9f | Change: %2.9f" 
+                print('\r', "Epoch: %04d | Validation Accuracy: %2.9f | Change: %2.9f" 
                       % (epoch+1, c, diff), end='')
+                
+                if c > threshold:
+                    print("\nValidation accuracy threshold reached!")
+                    break
                 
                 last_acc = c
             
@@ -225,6 +235,8 @@ class ConvNet(object):
             `save_loc`: 
                 The location of the saved weights for the model.
         """
+        assert self.train_time is not None, "You must train the model first!"
+        
         model = tf.nn.softmax(self.LOGITS)
         pred = None
         
@@ -232,19 +244,22 @@ class ConvNet(object):
             # Load saved weights
             tf.train.Saver().restore(sess, save_loc)
             for batch_x, _ in self._batches(X, shuffle=False):
-                tmp = sess.run(model, feed_dict={self.DATA: batch_x,
-                                                 self.DROPOUT: 1.0})
+                tmp = sess.run(model, feed_dict={self._data: batch_x,
+                                                 self._dropout: 1.0})
                 if pred is None: pred = tmp
                 else: pred = np.concatenate((pred, tmp))
         return pred
     
-    def score(self, X, y, plot=False, normalize=False):
+    def score(self, test_data, plot=False, normalize=False):
         """
         Returns the accuracy of the trained model on the provided data.
+        
+        Expects `test_data` to be a tuple containing (data, labels).
         
         The `plot` argument, when true, will plot out the confusion matrix for 
         the data, allowing you to visualize the performance of the model.
         """
+        X, y = test_data
         assert X.shape[0] == y.shape[0], "Different number of obs and labels."
         
         count, correct = 0, 0
@@ -285,9 +300,9 @@ class ConvNet(object):
         """
         assert name not in self.weights, "Layer name must be unique."
         
-        if self.LOGITS is None: INPUT = self.DATA
+        if self.LOGITS is None: INPUT = self._data
         else: INPUT = self.LOGITS
-            
+        
         if input_padding:
             INPUT = tf.pad(INPUT, [[0,0],[input_padding,input_padding],
                                    [input_padding,input_padding],[0,0]])
@@ -297,15 +312,17 @@ class ConvNet(object):
         self.weights[name] = tf.Variable(tf.truncated_normal((
             [kernel_size, 
              kernel_size, 
-             self.layer_depths[self.last_layer], 
-             depth])))
-        self.biases[name] = tf.Variable(tf.zeros(depth))
+             self.layer_depths[self._last_layer], 
+             depth]),
+            stddev=0.1),
+            name=name)
+        self.biases[name] = tf.Variable(tf.zeros(depth), name=name)
         
         strides = [1, stride, stride, 1]
         self.LOGITS = tf.nn.conv2d(INPUT, self.weights[name], strides, padding)
         self.LOGITS = tf.nn.bias_add(self.LOGITS, self.biases[name])
         self.LOGITS = ACTIVATION(self.LOGITS)
-        self.last_layer = name
+        self._last_layer = name
     
     def fully_connected(self, name, depth, ACTIVATION=tf.nn.relu):
         """
@@ -321,8 +338,8 @@ class ConvNet(object):
             `depth`: 
                 The output dimension of the layer.
             `ACTIVATION`: 
-                The activation function for the layer. To disable, set 
-                ACTIVATION=None.
+                The activation function for the layer. Default is `tf.nn.relu`.
+                To disable, set ACTIVATION=None.
         """
         if self.LOGITS is None:
             raise ValueError('Add a ConvLayer first.')
@@ -338,12 +355,14 @@ class ConvNet(object):
         # flat, it can't get any flatter :)
         self.weights[name] = tf.Variable(tf.truncated_normal(
             [self.LOGITS.get_shape().as_list()[-1],
-             depth]))
-        self.biases[name] = tf.Variable(tf.zeros(depth))
+             depth],
+            stddev=0.1),
+            name=name)
+        self.biases[name] = tf.Variable(tf.zeros(depth), name=name)
         
         self.LOGITS = tf.matmul(self.LOGITS, self.weights[name]) + self.biases[name]
         self.LOGITS = ACTIVATION(self.LOGITS)
-        self.last_layer = name
+        self._last_layer = name
     
     def dropout(self):
         """
@@ -353,7 +372,7 @@ class ConvNet(object):
         """
         if self.LOGITS is None:
             raise ValueError('Add a ConvLayer to the model first.')
-        self.LOGITS = tf.nn.dropout(self.LOGITS, self.DROPOUT)
+        self.LOGITS = tf.nn.dropout(self.LOGITS, self._dropout)
     
     def pool2d(self, method, kernel_size=2, stride=2, padding='VALID'):
         """
@@ -383,6 +402,46 @@ class ConvNet(object):
         else:
             self.LOGITS = tf.nn.avg_pool(self.LOGITS, kernel, strides, padding)
     
+    def _plt_confusion_matrix(self, labels, pred, normalize=False,
+                              title='Confusion matrix', cmap=plt.cm.Blues):
+        """
+        Given one-hot encoded labels and preds, displays a confusion matrix.
+        
+        Arguments:
+            `labels`: 
+                The ground truth one-hot encoded labels.
+            `pred`: 
+                The one-hot encoded labels predicted by a model.
+            `normalize`: 
+                If True, divides every column of the confusion matrix
+                by its sum. This is helpful when, for instance, there are 1000
+                'A' labels and 5 'B' labels. Normalizing this set would
+                make the color coding more meaningful and informative.
+        """
+        labels = [label.argmax() for label in labels]
+        pred = [label.argmax() for label in pred]
+        
+        cm = confusion_matrix(labels, pred)
+        classes = np.arange(self.n_classes)
+        
+        plt.figure(figsize=(9,7))
+        plt.imshow(cm, interpolation='nearest', aspect='auto', cmap=cmap)
+        plt.title(title)
+        plt.colorbar()
+        tick_marks = np.arange(len(classes))
+        plt.xticks(tick_marks, classes, rotation=45)
+        plt.yticks(tick_marks, classes)
+    
+        if normalize:
+            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+            print("Normalized confusion matrix")
+        else:
+            print('Confusion matrix, without normalization')
+    
+        plt.tight_layout()
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
+    
     def _batches(self, X, y=None, shuffle=True):
         """
         Splits a dataset and its labels (optional) into batches for training.
@@ -397,6 +456,9 @@ class ConvNet(object):
                 and labels, perserving the labeling of each element.
                 Reccommended for training. Not reccommended for scoring :)
         """
+        if X.ndim == 3: 
+            return [X[np.newaxis,...], None]
+        
         batch_size = self.BATCH_SIZE
         n_obs = X.shape[0]
         n_batches = math.ceil(n_obs/batch_size)
@@ -422,81 +484,3 @@ class ConvNet(object):
             if y is None: y_shuffled.append(0)
             else: y_shuffled.append(y[i,...])
         return (np.array(X_shuffled), np.array(y_shuffled))
-    
-#    @staticmethod
-#    def _plt_confusion_matrix(labels, pred, normalize=False, size=(10,7)):
-#        """
-#        Given one-hot encoded labels and preds, displays a confusion matrix.
-#        
-#        Arguments:
-#            `labels`: 
-#                The ground truth one-hot encoded labels.
-#            `pred`: 
-#                The one-hot encoded labels predicted by a model.
-#            `normalize`: 
-#                If True, divides every column of the confusion matrix
-#                by its sum. This is helpful when, for instance, there are 1000
-#                'A' labels and 5 'B' labels. Normalizing this set would
-#                make the color coding more meaningful and informative.
-#        """
-#        # De one-hot encode the labels
-#        labels_tmp,pred_tmp = [],[]
-#        for i in range(labels.shape[0]):
-#            labels_tmp.append(labels[i].argmax())
-#            pred_tmp.append(pred[i].argmax())
-#        labels, pred = np.array(labels_tmp), np.array(pred_tmp)
-#        
-#        n_classes = len(set(labels))
-#        cm = confusion_matrix(labels, pred)
-#        
-#        if normalize:
-#            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-#        
-#        df_cm = pd.DataFrame(cm, index = [i for i in np.arange(n_classes)],
-#                          columns = np.arange(n_classes))
-#        plt.figure(figsize=size)
-#        sn.heatmap(df_cm, annot=False)
-    
-    def _plt_confusion_matrix(self, labels, pred, normalize=False,
-                              title='Confusion matrix', cmap=plt.cm.Blues):
-        """
-        Given one-hot encoded labels and preds, displays a confusion matrix.
-        
-        Arguments:
-            `labels`: 
-                The ground truth one-hot encoded labels.
-            `pred`: 
-                The one-hot encoded labels predicted by a model.
-            `normalize`: 
-                If True, divides every column of the confusion matrix
-                by its sum. This is helpful when, for instance, there are 1000
-                'A' labels and 5 'B' labels. Normalizing this set would
-                make the color coding more meaningful and informative.
-        """
-        cm = confusion_matrix(labels, pred)
-        classes = np.arange(self.n_classes)
-        
-        plt.imshow(cm, interpolation='nearest', cmap=cmap)
-        plt.title(title)
-        plt.colorbar()
-        tick_marks = np.arange(len(classes))
-        plt.xticks(tick_marks, classes, rotation=45)
-        plt.yticks(tick_marks, classes)
-    
-        if normalize:
-            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-            print("Normalized confusion matrix")
-        else:
-            print('Confusion matrix, without normalization')
-    
-        print(cm)
-    
-        thresh = cm.max() / 2.
-        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-            plt.text(j, i, cm[i, j],
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else "black")
-    
-        plt.tight_layout()
-        plt.ylabel('True label')
-        plt.xlabel('Predicted label')
