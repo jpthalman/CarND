@@ -44,22 +44,27 @@ class ConvNet(object):
         `keep_prob`: 
             If a dropout layer is used, this value will be used as the 
             probability of keeping each weight.
+        `image_shape`:
+            Tuple containing the shape of the input images. (H, W).
+        `n_classes`:
+            The number of classes the model will be predicting.
     
     Attributes:
         `train_time`: 
-            
+            Stores the time in seconds needed to train the model.
         `image_shape`:
-            
+            Tuple containing the shape of the input images.
         `n_classes`:
-            
+            The number of classes the model will be predicting.
         `layer_depths`:
-            
+            A disctionary containing key='Layer Name' and value='Layer Depth'.
         `weights`:
-            
+            A dictionary containing the tf.Variable for each layers weights.
         `biases`:
-            
+            A dictionary containing the tf.Variable for each layers biases.
         `LOGITS`:
-            
+            The constructed tensorflow model. To output the probabilities for 
+            each class from this model, use tf.nn.softmax(model.LOGITS).
     
     Layers:
         `conv2d`: 
@@ -134,7 +139,7 @@ class ConvNet(object):
                 Constant multiplier for l2 regularization terms. Default is 
                 0.001. Set to 0 to remove l2 regularization.
             `save_loc`: 
-                The location to save the weights for the model.
+                The location to save the weights for the trained model.
             `OPTIMIZER`: 
                 The tensorflow optimization algorithm to use. Default is 
                 `tf.train.AdamOptimizer`.
@@ -300,13 +305,14 @@ class ConvNet(object):
         """
         assert name not in self.weights, "Layer name must be unique."
         
+        if ACTIVATION is None: ACTIVATION=lambda x:x
+        
         if self.LOGITS is None: INPUT = self._data
         else: INPUT = self.LOGITS
         
         if input_padding:
             INPUT = tf.pad(INPUT, [[0,0],[input_padding,input_padding],
                                    [input_padding,input_padding],[0,0]])
-        if ACTIVATION is None: ACTIVATION=lambda x:x
         
         self.layer_depths[name] = depth
         self.weights[name] = tf.Variable(tf.truncated_normal((
@@ -343,7 +349,11 @@ class ConvNet(object):
         """
         if self.LOGITS is None:
             raise ValueError('Add a ConvLayer first.')
+        
         assert name not in self.weights, "Layer name must be unique."
+        
+        if name == 'OUT' and ACTIVATION is not None:
+            raise ValueError('The output layer cannot have an activation function.')
         
         if ACTIVATION is None: ACTIVATION=lambda x:x
         
