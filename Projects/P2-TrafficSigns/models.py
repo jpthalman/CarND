@@ -176,7 +176,13 @@ class ConvNet(object):
         for key in list(self.weights.keys()):
             loss += l2_beta * tf.nn.l2_loss(self.weights[key])
         
-        optimizer = OPTIMIZER(learning_rate=self.LEARNING_RATE).minimize(loss)
+        optimizer = OPTIMIZER(learning_rate=self.LEARNING_RATE)
+        
+        grads_and_vars = optimizer.compute_gradients(loss)
+        grad_norms = [tf.nn.l2_loss(g) for g, v in grads_and_vars]
+        grad_norm = tf.add_n(grad_norms)
+        
+        optimizer = optimizer.minimize(loss)
         
         correct_prediction = tf.equal(tf.argmax(self.LOGITS, 1), 
                                       tf.argmax(self._labels, 1))
@@ -193,11 +199,13 @@ class ConvNet(object):
             
             for epoch in range(training_epochs):
                 # Train model over all batches
+                avg_gn = []
                 for batch_x, batch_y in self._batches(X_train, y_train):
-                    sess.run(optimizer, 
-                             feed_dict={self._data: batch_x, 
-                                        self._labels: batch_y,
-                                        self._dropout: self._keep_prob})
+                    _, gn = sess.run([optimizer, grad_norm], 
+                                     feed_dict={self._data: batch_x, 
+                                                self._labels: batch_y,
+                                                self._dropout: self._keep_prob})
+                    avg_gn += [gn]
                 
                 # Calculate accuracy over validation set
                 acc = []
@@ -209,8 +217,8 @@ class ConvNet(object):
                 c = np.mean(acc)                
                 diff = c - last_acc
                 
-                print('\r', "Epoch: %04d | Validation Accuracy: %2.4f | Change: %2.4f" 
-                      % (epoch+1, c, diff), end='')
+                print('\r', "Epoch: %04d | Validation Accuracy: %2.4f | Change: %2.4f | %2.9f" 
+                      % (epoch+1, c, diff, np.mean(avg_gn)), end='')
                 
                 if c > threshold:
                     print("\nValidation accuracy threshold reached!")
