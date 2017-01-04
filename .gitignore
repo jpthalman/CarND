@@ -1,12 +1,14 @@
 *.p
 *.ckpt
 *.ckpt.index
+*.ckpt.meta
 *.ckpt.data-00000-of-00001
 *.zip
 *.tar
 *.gz
 *.pyc
 *.chk.meta
+
 
 .ipynb_checkpoints
 __pycache__
