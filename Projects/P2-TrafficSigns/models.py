@@ -115,7 +115,7 @@ class ConvNet(object):
         self.LOGITS = None
     
     def train(self, train, val, training_epochs=100, l2_beta=0.001,
-              threshold=0.99, save_loc='Checkpoints/model.ckpt', 
+              threshold=0.98, save_loc='Checkpoints/model.ckpt', 
               OPTIMIZER=tf.train.AdamOptimizer):
         """
         Trains the current model with the given training data.
@@ -133,8 +133,8 @@ class ConvNet(object):
             `training_epochs`:
                 The maximum number of full runs through the training dataset.
             `threshold`: 
-                If the validation accuracy goes above this threshold, stop 
-                training. Default is 0.99.
+                If the Validation accuracy rises above this value, stops
+                training.
             `l2_beta`:
                 Constant multiplier for l2 regularization terms. Default is 
                 0.001. Set to 0 to remove l2 regularization.
@@ -177,11 +177,6 @@ class ConvNet(object):
             loss += l2_beta * tf.nn.l2_loss(self.weights[key])
         
         optimizer = OPTIMIZER(learning_rate=self.LEARNING_RATE)
-        
-        grads_and_vars = optimizer.compute_gradients(loss)
-        grad_norms = [tf.nn.l2_loss(g) for g, v in grads_and_vars]
-        grad_norm = tf.add_n(grad_norms)
-        
         optimizer = optimizer.minimize(loss)
         
         correct_prediction = tf.equal(tf.argmax(self.LOGITS, 1), 
@@ -199,13 +194,10 @@ class ConvNet(object):
             
             for epoch in range(training_epochs):
                 # Train model over all batches
-                avg_gn = []
                 for batch_x, batch_y in self._batches(X_train, y_train):
-                    _, gn = sess.run([optimizer, grad_norm], 
-                                     feed_dict={self._data: batch_x, 
-                                                self._labels: batch_y,
-                                                self._dropout: self._keep_prob})
-                    avg_gn += [gn]
+                    sess.run(optimizer, feed_dict={self._data: batch_x, 
+                                                   self._labels: batch_y,
+                                                   self._dropout: self._keep_prob})
                 
                 # Calculate accuracy over validation set
                 acc = []
@@ -214,17 +206,18 @@ class ConvNet(object):
                                         feed_dict={self._data: batch_x,
                                                    self._labels: batch_y,
                                                    self._dropout: 1.0}))
-                c = np.mean(acc)                
-                diff = c - last_acc
                 
-                print('\r', "Epoch: %04d | Validation Accuracy: %2.4f | Change: %2.4f | %2.9f" 
-                      % (epoch+1, c, diff, np.mean(avg_gn)), end='')
+                acc = np.mean(acc)
+                diff = acc - last_acc
                 
-                if c > threshold:
+                print('\r', "Epoch: %04d | Validation Accuracy: %2.4f | Change: %2.9f" 
+                      % (epoch+1, acc, diff), end='')
+                
+                if acc > threshold:
                     print("\nValidation accuracy threshold reached!")
                     break
                 
-                last_acc = c
+                last_acc = acc
             
             # Calculate runtime and print out results
             self.train_time = time.clock() - start_time
