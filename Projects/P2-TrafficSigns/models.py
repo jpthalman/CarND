@@ -167,6 +167,7 @@ class ConvNet(object):
         # Add an output layer if one doesn't already exist
         if 'OUT' not in self.weights:
             self.fully_connected('OUT', self.n_classes, ACTIVATION=None)
+            self._last_layer = 'OUT'
         
         # Define loss and optimizer for training
         loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
@@ -241,7 +242,10 @@ class ConvNet(object):
             `save_loc`: 
                 The location of the saved weights for the model.
         """
-        assert self.train_time is not None, "You must train the model first!"
+        # This is not ideal to ensure training has occured. My first thought
+        # was to assert that self.train_time is not None, but this fails when
+        # the kernel is restarted and the weights are loaded.
+        assert self._last_layer == 'OUT', "You must train the model first!"
         
         model = tf.nn.softmax(self.LOGITS)
         pred = None
