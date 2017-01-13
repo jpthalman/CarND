@@ -14727,7 +14727,7 @@ Data: (39209, 32, 32, 1) | Labels: (39209,)
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong><br>
-The first step I took to pre-process the images was to convert them to grayscale. I chose to convert them to grayscale by a process of elimination. E.G. the grayscale images performed better :)</p>
+The first step I took to pre-process the images was to convert them to grayscale. I chose to convert them to grayscale by a process of elimination. E.G. the grayscale images performed better :) I believe the grayscale images performed better due to the 3x1x1 convolution at the beginning of my model. This convolution has the effect of allowing the model to choose its own color mapping for the images, and the grayscale inputs reduced the complexity and variation of this process.</p>
 <p>Once converted, I noticed that there was varying brightness between images, so I researched methods to normalize these descrepancies. The method I chose to use was equalizing the histogram of the image, as it was easy to implement with cv2 and it did not rely on global training set data, reducing the chance of data snooping occuring during testing.</p>
 <p>Lastly, I normalized the pixel range to between [-0.5, 0.5] to create a well-conditioned problem for the optimizer to converge to a solution.</p>
 <p>At a later time, I will one-hot encode the labels. I am leaving them as-is for now to make life simpler when expanding the dataset.</p>
@@ -17235,6 +17235,8 @@ lBwOh8PhcDgcDocjhf8DDNSZSBrMAmkAAAAASUVORK5CYII=
 <strong>Beta for L2-Regularization:</strong>  0.001<br>
 <strong>Max Epochs:</strong> 100<br>
 <strong>Validation Accuracy Threshold:</strong> 98.2%</p>
+<p>I chose to use the Adam Optimizer because I read that it converges to a solution much faster and more reliably than stochastic gradient descent. The learning rate comes from the default settings for the optimizer. I chose a batch size of 64 because this was the biggest size I could reliably fit in my GPU memory (3.5GB). A larger batch size will, in most situations, lead to a faster convergence due to the reduction in noise.</p>
+<p>I chose a L2-Regularization factor of 0.001 to help prevent overfitting without limiting the representational capacity of the model. I chose a maximum number of epochs of 100 because my model usually converged around 30 epochs, so I decided to overshoot just to ensure that it would converge.</p>
 
 </div>
 </div>
@@ -17256,8 +17258,13 @@ lBwOh8PhcDgcDocjhf8DDNSZSBrMAmkAAAAASUVORK5CYII=
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong><br>
 This project was very interesting and informative, and I learned a lot about the intricacies and implementation of convolutional neural networks in TensorFlow. I took quite a bit of inspiration from Vivek Yadav's <a href="https://chatbotslife.com/german-sign-classification-using-deep-learning-neural-networks-98-8-solution-d05656bf51ad#.l55w6xh39">work</a> on this project. Using his techniques as a starting point, I was able to get very good results. However, I was not able to replicate his success due to environment issues with dropout.</p>
-<p>My steps were mainly trial and error, alongside iterating on my ConvNet class to improve it's functionality and provide relevant information on the model performance. Once I had an architecture that was achieving good results, I tuned my hyperparameters as well as possible. The only limitations I faced were the issues with my environment and the time it took to train a model on my GTX 960.</p>
-<p>Nonetheless, I am very pleased with the results I achieved and I will most likely come back to this project in the future to see if I can improve my accuracy.</p>
+<p>My steps were mainly trial and error, alongside iterating on my ConvNet class to improve it's functionality and provide relevant information on the model performance. To arrive at the architecture I have now, I set up a simple one layer ConvNet and trained it to see the results. If the results were not good enough (98.2% validation accuracy), I added another convolutional layer to the model. I repeated this process untill the model began to overfit to the training data.</p>
+<p>Once this occured, I added L2-Regularization to the loss to help dampen the overfitting, and ran the model a couple more times to tune the Beta value. L2-Regularization helps to prevent overfitting by constraining the optimization function to a hyper-sphere around the origin. If the local/global optimum lies outside this sphere, the optimizer cannot reach it. Another way to think about it is that L2-Regularizaion prevents the optimizer from using all of the degrees of freedom in the hypothesis set of functions. A well tuned regularization constant will allow the model to have <em>just enough</em> degrees of freedom to fit the objective function as well as possible without going crazy to fit each data point perfectly.</p>
+<p>I chose to use the softmax activation function for my outputs, as this function would allow the model to express it's <strong>certainty</strong> in it's prediction. This allowed me to essentially inspect what the model was thinking. E.G. if its highest predicted class had a value of 0.99, the model was very certian about its prediction. However, if the models highest predicted class had a value of 0.3, it was most likely confused by the image. Additionally, if the model was very certain about a prediction that was incorrect, it had most likely overfitted to the training data.</p>
+<p>I chose to use the cross entropy loss function, as this allows the model to train against a multi-class dataset. The other option would have been to discretize the output and train with mean-squared error. However, this approach would not allow the model to express its certainty about it's predictions, so I decided to stay with cross-entropy.</p>
+<p>My activation function for the convolutional layers was the Leaky-ReLU function. This function is the same as the normal ReLU function, except with a slight slope for the negative part. E.G. max(0.1x, x). This activation function helps prevent neurons from 'dissappearing', or becoming so negative that they will <em>never</em> become activated again.</p>
+<p>I added max-pooling layers to help the model become scale and translation invariant. Max-pooling helps to achieve this by only propogating the highest activation in a region, effectively shrinking the seach space for features and increasing the receptive field for higher level features.</p>
+<p>In conclusion, I am very pleased with the results I achieved.I will most likely come back to this project in the future to see if I can improve my accuracy.</p>
 
 </div>
 </div>
