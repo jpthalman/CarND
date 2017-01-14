@@ -15,3 +15,21 @@ def load_data():
 
     return np.array(images), steering_angles
 
+
+def split_data(features, labels, test_size=0.2, shuffle=True):
+    from sklearn.model_selection import train_test_split
+    from sklearn.utils import shuffle
+
+    if shuffle:
+        features, labels = shuffle(features, labels)
+
+    return train_test_split(features, labels, test_size=test_size)
+
+
+def flip_images(images, angles):
+    pass
+
+
+def transform_images(images, angles):
+    pass
+
