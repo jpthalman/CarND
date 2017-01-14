@@ -11,7 +11,9 @@
 *.chk.meta
 
 
+.idea
 .ipynb_checkpoints
 __pycache__
 sdc
 Projects/P3-BehavioralCloning/env
+Projects/P3-BehavioralCloning/Data
