@@ -73,7 +73,6 @@ if __name__ == '__main__':
         # instead.
         model = model_from_json(jfile.read())
 
-
     model.compile("adam", "mse")
     weights_file = args.model.replace('json', 'h5')
     model.load_weights(weights_file)
