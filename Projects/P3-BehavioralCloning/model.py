@@ -18,7 +18,7 @@ from keras.layers.convolutional import Convolution2D
 from keras.layers.advanced_activations import ELU, PReLU
 
 # Load the data
-images, angles = utils.load_data()
+images, angles = utils.load_data("~/sharefolder/CarND/Projects/P3-BehavioralCloning/Data/driving_log.csv")
 n_obs, im_h, im_w, color_ch = images.shape
 print("Loaded %d observations with image shape %r." % (n_obs, (im_h, im_w, color_ch)))
 
