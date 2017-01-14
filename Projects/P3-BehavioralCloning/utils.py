@@ -1,8 +1,8 @@
 import numpy as np
+import cv2
 
 
 def load_data():
-    import cv2
     import pandas as pd
 
     data = pd.read_csv("~/sharefolder/CarND/Projects/P3-BehavioralCloning/Data/driving_log.csv",
@@ -26,8 +26,19 @@ def split_data(features, labels, test_size=0.2, shuffle=True):
     return train_test_split(features, labels, test_size=test_size)
 
 
-def flip_images(images, angles):
-    pass
+def flip_and_concat(images, angles):
+    n_obs = images.shape[0]
+    assert n_obs == angles.shape[0], "Different number of images and steering angles"
+
+    flipped_images = []
+    flipped_angles = []
+    for i, image in enumerate(images):
+        flipped_images.append(cv2.flip(image, 1))
+        flipped_angles.append(-angles[i])
+
+    images = np.concatenate((images, np.array(flipped_images)), axis=0)
+    angles = np.concatenate((angles, np.array(flipped_angles)), axis=0)
+    return images, angles
 
 
 def transform_images(images, angles):
