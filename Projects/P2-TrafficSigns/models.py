@@ -98,7 +98,7 @@ class ConvNet(object):
         self.n_classes = n_classes
         self.train_time = None
         
-        self._data = self._data = tf.placeholder(tf.float32, 
+        self._data = tf.placeholder(tf.float32,
                 [None, image_shape[0], image_shape[1], color_channels],
                 name='data')
         self._labels = tf.placeholder(tf.float32, 
@@ -114,8 +114,8 @@ class ConvNet(object):
         self.biases = {}
         self.LOGITS = None
     
-    def train(self, train, val, training_epochs=100, l2_beta=0.001,
-              threshold=0.98, save_loc='Checkpoints/model.ckpt', 
+    def train(self, train, val, max_epochs=100, l2_beta=0.001,
+              patience=10, save_loc='Checkpoints/model.ckpt',
               OPTIMIZER=tf.train.AdamOptimizer):
         """
         Trains the current model with the given training data.
@@ -180,20 +180,18 @@ class ConvNet(object):
         optimizer = OPTIMIZER(learning_rate=self.LEARNING_RATE)
         optimizer = optimizer.minimize(loss)
         
-        correct_prediction = tf.equal(tf.argmax(self.LOGITS, 1), 
-                                      tf.argmax(self._labels, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        last_acc = 0
-        
         init = tf.global_variables_initializer()
         
         with tf.Session() as sess:
             print('Starting training process:')
             
             sess.run(init)
+            best = {'epoch':0, 'val_loss':1e10, 'last':0}
+            saver = tf.train.Saver()
+
             start_time = time.clock()
             
-            for epoch in range(training_epochs):
+            for epoch in range(max_epochs):
                 # Train model over all batches
                 for batch_x, batch_y in self._batches(X_train, y_train):
                     sess.run(optimizer, feed_dict={self._data: batch_x, 
@@ -201,24 +199,24 @@ class ConvNet(object):
                                                    self._dropout: self._keep_prob})
                 
                 # Calculate accuracy over validation set
-                acc = []
+                c = []
                 for batch_x, batch_y in self._batches(X_val, y_val, shuffle=False):
-                    acc.append(sess.run(accuracy, 
-                                        feed_dict={self._data: batch_x,
-                                                   self._labels: batch_y,
-                                                   self._dropout: 1.0}))
+                    c.append(sess.run(loss,
+                                      feed_dict={self._data: batch_x,
+                                                 self._labels: batch_y,
+                                                 self._dropout: 1.0}))
                 
-                acc = np.mean(acc)
-                diff = acc - last_acc
-                
-                print('\r', "Epoch: %04d | Validation Accuracy: %2.4f | Change: %2.9f" 
-                      % (epoch+1, acc, diff), end='')
-                
-                if acc > threshold:
-                    print("\nValidation accuracy threshold reached!")
+                c = np.mean(c).astype('float32')
+                print('\r', "Epoch: %04d | Validation Loss: %2.9f"
+                      % (epoch+1, c), end='')
+
+                best['last'] += 1
+                if best['loss'] > c:
+                    best = {'epoch': epoch, 'val_loss': c, 'last': 0}
+                    saver.save(sess, save_loc)
+
+                if best['last'] >= patience:
                     break
-                
-                last_acc = acc
             
             # Calculate runtime and print out results
             self.train_time = time.clock() - start_time
@@ -226,9 +224,7 @@ class ConvNet(object):
             h, m = divmod(m, 60)
             print("\nOptimization Finished!! Training time: %02dh:%02dm:%02ds"
                   % (h, m, s))
-            
-            # Save trained weights for prediction
-            tf.train.Saver().save(sess, save_loc)
+            print('Best Validation Loss: %2.9f', best['val_loss'])
     
     def predict(self, X, save_loc='Checkpoints/model.ckpt'):
         """
