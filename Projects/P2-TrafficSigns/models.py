@@ -186,17 +186,31 @@ class ConvNet(object):
             print('Starting training process:')
             
             sess.run(init)
-            best = {'epoch':0, 'val_loss':1e10, 'last':0}
             saver = tf.train.Saver()
 
+            best = {'epoch': 0, 'val_loss': 1e10, 'last': 0}
+            n_obs = X_train.shape[0]
             start_time = time.clock()
             
             for epoch in range(max_epochs):
                 # Train model over all batches
+                n_examples = 0
+                l_running_avg = 0
                 for batch_x, batch_y in self._batches(X_train, y_train):
-                    sess.run(optimizer, feed_dict={self._data: batch_x, 
-                                                   self._labels: batch_y,
-                                                   self._dropout: self._keep_prob})
+                    n_examples += min(self.BATCH_SIZE, n_obs)
+
+                    l_running_avg += sess.run(
+                        [optimizer, loss],
+                        feed_dict={self._data: batch_x,
+                                   self._labels: batch_y,
+                                   self._dropout: self._keep_prob}
+                      )[1]
+
+                    print('\r',
+                          'Epoch: %04d | %03.1f%% - Loss: %2.9f'
+                          % (epoch+1, 100*min(n_examples/n_obs, 1.0), l_running_avg*self.BATCH_SIZE/n_examples),
+                          end=''
+                      )
                 
                 # Calculate accuracy over validation set
                 c = []
@@ -207,16 +221,17 @@ class ConvNet(object):
                                                  self._dropout: 1.0}))
                 
                 c = np.mean(c).astype('float32')
-                print('\r', "Epoch: %04d | Validation Loss: %2.9f"
-                      % (epoch+1, c), end='')
+                print(" | Validation Loss: %2.9f" % c, end='')
 
                 best['last'] += 1
-                if best['loss'] > c:
+                if best['val_loss'] > c:
+                    print(' - Best!', end='')
                     best = {'epoch': epoch, 'val_loss': c, 'last': 0}
                     saver.save(sess, save_loc)
 
                 if best['last'] >= patience:
                     break
+                print()
             
             # Calculate runtime and print out results
             self.train_time = time.clock() - start_time
@@ -224,7 +239,7 @@ class ConvNet(object):
             h, m = divmod(m, 60)
             print("\nOptimization Finished!! Training time: %02dh:%02dm:%02ds"
                   % (h, m, s))
-            print('Best Validation Loss: %2.9f', best['val_loss'])
+            print('Best Validation Loss: %2.9f' % best['val_loss'])
     
     def predict(self, X, save_loc='Checkpoints/model.ckpt'):
         """
