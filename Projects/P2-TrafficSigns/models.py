@@ -179,6 +179,10 @@ class ConvNet(object):
         
         optimizer = OPTIMIZER(learning_rate=self.LEARNING_RATE)
         optimizer = optimizer.minimize(loss)
+
+        correct_prediction = tf.equal(tf.argmax(self.LOGITS, 1),
+                                      tf.argmax(self._labels, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         
         init = tf.global_variables_initializer()
         
@@ -188,7 +192,7 @@ class ConvNet(object):
             sess.run(init)
             saver = tf.train.Saver()
 
-            best = {'epoch': 0, 'val_loss': 1e10, 'last': 0}
+            best = {'epoch': 0, 'val_acc': 0, 'last': 0}
             n_obs = X_train.shape[0]
             start_time = time.clock()
             
@@ -207,26 +211,27 @@ class ConvNet(object):
                       )[1]
 
                     print('\r',
-                          'Epoch: %04d | %03.1f%% - Loss: %2.9f'
-                          % (epoch+1, 100*min(n_examples/n_obs, 1.0), l_running_avg*self.BATCH_SIZE/n_examples),
+                          'Epoch: %03d | %05.1f%% - Loss: %2.9f'
+                          % (epoch+1, min(100*n_examples/n_obs, 100.0), l_running_avg*self.BATCH_SIZE/n_examples),
                           end=''
                       )
                 
                 # Calculate accuracy over validation set
                 c = []
                 for batch_x, batch_y in self._batches(X_val, y_val, shuffle=False):
-                    c.append(sess.run(loss,
+                    c.append(sess.run(accuracy,
                                       feed_dict={self._data: batch_x,
                                                  self._labels: batch_y,
                                                  self._dropout: 1.0}))
                 
                 c = np.mean(c).astype('float32')
-                print(" | Validation Loss: %2.9f" % c, end='')
+                print(" | Validation Acc: %2.4f%%" % (c*100.0), end='')
 
                 best['last'] += 1
-                if best['val_loss'] > c:
+
+                if best['val_acc'] < c:
                     print(' - Best!', end='')
-                    best = {'epoch': epoch, 'val_loss': c, 'last': 0}
+                    best = {'epoch': epoch, 'val_acc': c, 'last': 0}
                     saver.save(sess, save_loc)
 
                 if best['last'] >= patience:
@@ -239,7 +244,7 @@ class ConvNet(object):
             h, m = divmod(m, 60)
             print("\nOptimization Finished!! Training time: %02dh:%02dm:%02ds"
                   % (h, m, s))
-            print('Best Validation Loss: %2.9f' % best['val_loss'])
+            print('Best Validation Loss: %2.9f' % best['val_acc'])
     
     def predict(self, X, save_loc='Checkpoints/model.ckpt'):
         """
@@ -483,7 +488,7 @@ class ConvNet(object):
                 Reccommended for training. Not reccommended for scoring :)
         """
         if X.ndim == 3: 
-            return [X[np.newaxis,...], None]
+            return [X[np.newaxis, ...], None]
         
         batch_size = self.BATCH_SIZE
         n_obs = X.shape[0]
@@ -491,10 +496,11 @@ class ConvNet(object):
         
         if shuffle:
             X, y = self._shuffle(X, y)
-        
-        return [[X[batch : min(n_obs, batch+batch_size)],
-                 [0] if y is None else y[batch : min(n_obs, batch+batch_size)]]
-                for batch in range(0, n_batches*batch_size, batch_size)]
+
+        for batch in range(0, n_batches*batch_size, batch_size):
+            batch_x = X[batch:min(n_obs, batch+batch_size)]
+            batch_y = 0 if y is None else y[batch:min(n_obs, batch+batch_size)]
+            yield batch_x, batch_y
     
     @staticmethod
     def _shuffle(X, y=None):
