@@ -41,9 +41,15 @@ def n_images(f):
 
 @decorator
 def timeit(f):
-    def _f(*args):
+    runtimes = []
+
+    def _f(*args, **kwargs):
         t0 = time.clock()
-        result = f(*args)
-        _f.runtime = time.clock() - t0
+
+        result = f(*args, **kwargs)
+
+        _f.last_runtime = time.clock() - t0
+        runtimes.append(_f.last_runtime)
+        _f.avg_runtime = np.mean(runtimes)
         return result
     return _f
