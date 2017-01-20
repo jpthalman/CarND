@@ -133,11 +133,6 @@ with open('model.json', 'w') as file:
 
 
 # Model training
-batches = utils.BatchGenerator(
-    batch_size=params.batch_size,
-    load=True,
-    path=path
-  )
 callbacks = [
     EarlyStopping(monitor='val_loss', min_delta=params.min_delta, patience=params.patience,
                   mode='min'),
@@ -146,10 +141,12 @@ callbacks = [
     TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True)
   ]
 model.fit_generator(
-    generator=batches.keras(train_paths, train_angles, augmentor=utils.augment_set, args=params.args),
+    generator=utils.batch_generator(ims=train_paths, vals=train_angles, batch_size=params.batch_size,
+                                    augmentor=utils.augment_image, args=params.args, path=path),
     samples_per_epoch=800*params.batch_size,
     nb_epoch=params.max_epochs,
-    validation_data=batches.validation(val_paths, val_angles, utils.flip_set),
+    validation_data=utils.batch_generator(ims=val_paths, vals=val_angles, batch_size=params.batch_size,
+                                          augmentor=utils.val_augmentor, path=path),
     nb_val_samples=2*val_paths.shape[0],
     callbacks=callbacks
   )

@@ -4,6 +4,7 @@ import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
+from decorators import n_images
 
 
 def load_data(file):
@@ -68,25 +69,58 @@ def split_data(features, labels, test_size=0.2, shuffle_return=True):
     return train_test_split(features, labels, test_size=test_size)
 
 
-def normalize_image(im):
-    # Grayscale and normalize image to [-0.5, 0.5]
-    if im.ndim == 3 and im.shape[2] == 3:
-        im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+def process_image(im):
+    """
+    Grayscale the image and normalize its pixels to [-0.5, 0.5]
+
+    :param im: Image to normalize
+    :return: Normalized image with shape (h, w, 1)
+    """
+    assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
+
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     im = im/255. - 0.5
-    return im[..., None]
+
+    if im.ndim == 2:
+        im = im[..., None]
+    return im
 
 
-def flip_set(images, angle, normalizer=normalize_image):
-    normalized = [normalizer(im) for im in images]
-    flipped = np.array([cv2.flip(im, 1) for im in normalized])
-    return flipped[..., None], -angle
+@n_images
+def flip_image(image, angle):
+    """
+    Mirrors the image from left to right and flips the sign of the angle.
+
+    :param image: Image to flip
+    :param angle: Angle to flip
+    :return: (flipped_images, flipped_angle)
+    """
+    flipped = cv2.flip(image, 1)
+    if flipped.ndim == 2:
+        flipped = flipped[..., None]
+    return flipped, -angle
 
 
-def augment_image(image, value, prob, im_normalizer=normalize_image):
+def val_augmentor(ims, vals):
+    """
+    Normalizes images/vals into first set, flips and concats into second set, concats both sets, and returns.
+
+    :param ims: Images to normalize/flip
+    :param vals: Angles to normalize/flip
+    :return: (normalized/flipped images, normalized/flipped angles)
+    """
+    normalized = np.array([process_image(im) for im in ims])
+    flipped = flip_image(normalized)
+    return np.concatenate((normalized, flipped), axis=0), \
+           np.concatenate((vals, -vals), axis=0)
+
+
+@n_images
+def augment_image(image, value, prob, im_normalizer=process_image):
     """
     Augments an image and steering angle with probability `prob`.
 
-    This technique randomly adjusts the brighness, occludes the image with 30 random black squares,
+    This technique randomly adjusts the brightness, occludes the image with 30 random black squares,
     and slightly rotates, shifts and scales the image. These augmentations are meant to make the
     model more robust to differing conditions than those in the training set.
 
@@ -102,6 +136,8 @@ def augment_image(image, value, prob, im_normalizer=normalize_image):
     :type im_normalizer: function
     :rtype: tuple with values (augmented_image, augmented_value)
     """
+    assert image.ndim == 3, 'Image must have dimensions (h, w, ch)'
+
     image = im_normalizer(image)
 
     h, w = image.shape[:2]
@@ -164,6 +200,7 @@ def augment_image(image, value, prob, im_normalizer=normalize_image):
     return augmented, value
 
 
+# TODO: Delete if `augment_image` with decorator works
 def augment_set(data, values, prob):
     """
     Applies `augment_image` to all images in a given batch.
@@ -189,6 +226,31 @@ def augment_set(data, values, prob):
     return np.array(aug_batch_data), np.array(aug_batch_vals)
 
 
+def batch_generator(ims, vals, batch_size, augmentor, path, args={}):
+    n_obs = ims.shape[0]
+    assert n_obs == vals.shape[0], 'Different # of data and labels.'
+
+    while True:
+        for batch in range(0, n_obs, batch_size):
+            next_idx = batch + batch_size
+            batch_x = ims[batch:min(next_idx, n_obs), ...]
+            batch_y = vals[batch:min(next_idx, n_obs), ...]
+
+            # Ensure consistent batch size by adding random images to the last
+            # batch iff n_obs%batch_size != 0.
+            if next_idx > n_obs:
+                rand_idx = np.random.randint(0, n_obs-1, next_idx - n_obs)
+                batch_x += ims[rand_idx, ...]
+                batch_y += vals[rand_idx, ...]
+
+            # Load the images from their paths
+            batch_x = np.array([cv2.imread(path + im) for im in batch_x])
+            # Augment the images with the given function
+            batch_x, batch_y = augmentor(batch_x, batch_y, **args)
+            yield batch_x, batch_y
+
+
+# TODO: Delete if `batch_generator` works
 class BatchGenerator(object):
     def __init__(self, batch_size, load=False, path=''):
         self.batch_size = batch_size
