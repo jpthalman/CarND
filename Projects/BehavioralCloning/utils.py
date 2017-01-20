@@ -100,7 +100,7 @@ def process_image(im):
     im = im/255. - 0.5
 
     if im.ndim == 2:
-        im = im[..., None]
+        im = np.expand_dims(im, -1)
     return im
 
 
@@ -115,7 +115,7 @@ def flip_image(image, angle):
     """
     flipped = cv2.flip(image, 1)
     if flipped.ndim == 2:
-        flipped = flipped[..., None]
+        flipped = np.expand_dims(flipped, -1)
     return flipped, -angle
 
 
@@ -164,7 +164,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     # the dataset while balancing the left and right turn proportions.
     if np.random.uniform(0.0, 1.0) < 0.5:
         image, value = cv2.flip(image, 1), -value
-        image = image[..., None]
+        image = np.expand_dims(image, -1)
 
     # Return un-augmented image and value with probability (1-prob)
     if np.random.uniform(0.0, 1.0) > prob:
@@ -209,7 +209,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
 
     # Ensure there is a color channel
     if augmented.ndim < 3:
-        augmented = augmented[..., None]
+        augmented = np.expand_dims(augmented, -1)
 
     # Add random noise to steering angle
     rand_ang = 0.005
