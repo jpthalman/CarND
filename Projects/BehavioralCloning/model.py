@@ -1,14 +1,16 @@
 """
 Dependencies:
+    Keras
     Numpy
     OpenCV 3
     Pandas
     SciKit-Learn
-    Keras
 """
-import numpy as np
+
+
 from collections import namedtuple
 
+import numpy as np
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Flatten
 from keras.layers.pooling import MaxPooling2D
@@ -16,8 +18,13 @@ from keras.layers.convolutional import Convolution2D
 from keras.layers.advanced_activations import ELU
 from keras.optimizers import adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
+from keras.utils.visualize_util import plot
 
 import utils
+
+
+__author__ = 'Jacob Thalman'
+__email__ = 'jpthalman@gmail.com'
 
 
 # Create hyper-parameters
@@ -130,6 +137,7 @@ print('\n', model.summary(), '\n')
 # Save model structure
 with open('model.json', 'w') as file:
     file.write(model.to_json())
+plot(model, to_file='model.png')
 
 
 # Model training
@@ -141,12 +149,12 @@ callbacks = [
     TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True)
   ]
 model.fit_generator(
-    generator=utils.batch_generator(ims=train_paths, vals=train_angles, batch_size=params.batch_size,
+    generator=utils.batch_generator(ims=train_paths, angs=train_angles, batch_size=params.batch_size,
                                     augmentor=utils.augment_image, args=params.args, path=path),
     samples_per_epoch=800*params.batch_size,
     nb_epoch=params.max_epochs,
-    validation_data=utils.batch_generator(ims=val_paths, vals=val_angles, batch_size=params.batch_size,
-                                          augmentor=utils.val_augmentor, path=path),
+    validation_data=utils.batch_generator(ims=val_paths, angs=val_angles, batch_size=params.batch_size,
+                                          augmentor=utils.val_augmentor, path=path, validation=True),
     nb_val_samples=2*val_paths.shape[0],
     callbacks=callbacks
   )
