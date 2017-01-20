@@ -156,8 +156,11 @@ model.fit_generator(
                                     augmentor=utils.augment_image, kwargs=params.kwargs, path=path),
     samples_per_epoch=800*params.batch_size,
     nb_epoch=params.max_epochs,
-    validation_data=utils.batch_generator(ims=val_paths, angs=val_angles, batch_size=params.batch_size,
+    # Halve the batch size, as `utils.val_augmentor` doubles the batch size by flipping the images and angles
+    validation_data=utils.batch_generator(ims=val_paths, angs=val_angles, batch_size=params.batch_size//2,
                                           augmentor=utils.val_augmentor, path=path, validation=True),
+    # Double the size of the validation set, as we are flipping the images to balance the right/left
+    # distribution.
     nb_val_samples=2*val_paths.shape[0],
     callbacks=callbacks
   )
