@@ -110,9 +110,9 @@ def val_augmentor(ims, vals):
     :return: (normalized/flipped images, normalized/flipped angles)
     """
     normalized = np.array([process_image(im) for im in ims])
-    flipped = flip_image(normalized)
-    return np.concatenate((normalized, flipped), axis=0), \
-           np.concatenate((vals, -vals), axis=0)
+    flipped_ims, flipped_vals = flip_image(normalized, vals)
+    return np.concatenate((normalized, flipped_ims), axis=0), \
+           np.concatenate((vals, flipped_vals), axis=0)
 
 
 @n_images
@@ -240,8 +240,8 @@ def batch_generator(ims, vals, batch_size, augmentor, path, args={}):
             # batch iff n_obs%batch_size != 0.
             if next_idx > n_obs:
                 rand_idx = np.random.randint(0, n_obs-1, next_idx - n_obs)
-                batch_x += ims[rand_idx, ...]
-                batch_y += vals[rand_idx, ...]
+                batch_x = np.concatenate((batch_x, ims[rand_idx, ...]), axis=0)
+                batch_y = np.concatenate((batch_y, vals[rand_idx, ...]), axis=0)
 
             # Load the images from their paths
             batch_x = np.array([cv2.imread(path + im) for im in batch_x])

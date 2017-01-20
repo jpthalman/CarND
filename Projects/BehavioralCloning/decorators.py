@@ -22,7 +22,7 @@ def disabled(f):
 
 @decorator
 def n_images(f):
-    def _f(images, values, *args):
+    def _f(images, values, *args, **kwargs):
         assert isinstance(images, np.ndarray), '`images` must be a np.ndarray'
         assert isinstance(values, np.ndarray), '`values` must be a np.ndarray'
         assert images.ndim == 4, '`images` must be a 4d np.ndarray with dims (n_obs, h, w, ch)'
@@ -32,7 +32,7 @@ def n_images(f):
 
         new_ims, new_vals = [], []
         for i in range(n_obs):
-            im, val = f(images[i, ...], values[i, ...], *args)
+            im, val = f(images[i, ...], values[i, ...], *args, **kwargs)
             new_ims.append(im)
             new_vals.append(val)
         return np.array(new_ims), np.array(new_vals)
