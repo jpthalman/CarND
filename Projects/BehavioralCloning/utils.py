@@ -26,6 +26,41 @@ def load_data(file):
     return data
 
 
+def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
+    """
+    Keeps n-percent of a dataset-values pair where a condition over the values is true.
+
+    :param data: The dataset
+    :param values: The values to filter over
+    :param condition_lambda: A lambda by which to filter the dataset
+    :param percent: The percent of the dataset-value pair (where `condition_lambda` is true) to KEEP. [0.0, 1.0].
+
+    :type data: np.ndarray
+    :type values: np.ndarray
+    :type condition_lambda: lambda
+    :type percent: float
+
+    :return: Filtered tuple: (filtered_data, filtered_values)
+    :rtype: Tuple
+    """
+    assert data.shape[0] == values.shape[0], 'Different # of data points and values.'
+
+    cond_true = condition_lambda(values)
+    data_true, data_false = data[cond_true, ...], data[~cond_true, ...]
+    val_true, val_false = values[cond_true], values[~cond_true]
+
+    cutoff = int(percent * data_true.shape[0])
+    # Shuffle before clipping the top (1-n)%
+    data_true, val_true = shuffle(data_true, val_true)
+    # Only keep n% of the data points where the condition is true
+    clipped_data_true, clipped_val_true = data_true[:cutoff, ...], val_true[:cutoff]
+
+    filtered_data = np.concatenate((data_false, clipped_data_true), axis=0)
+    filtered_values = np.concatenate((val_false, clipped_val_true), axis=0)
+
+    return filtered_data, filtered_values
+
+
 def split_data(features, labels, test_size=0.2, shuffle_return=True):
     if shuffle_return:
         features, labels = shuffle(features, labels)
@@ -33,7 +68,21 @@ def split_data(features, labels, test_size=0.2, shuffle_return=True):
     return train_test_split(features, labels, test_size=test_size)
 
 
-def augment_image(image, value, prob):
+def normalize_image(im):
+    # Grayscale and normalize image to [-0.5, 0.5]
+    if im.ndim == 3 and im.shape[2] == 3:
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    im = im/255. - 0.5
+    return im[..., None]
+
+
+def flip_set(images, angle, normalizer=normalize_image):
+    normalized = [normalizer(im) for im in images]
+    flipped = np.array([cv2.flip(im, 1) for im in normalized])
+    return flipped[..., None], -angle
+
+
+def augment_image(image, value, prob, im_normalizer=normalize_image):
     """
     Augments an image and steering angle with probability `prob`.
 
@@ -44,30 +93,29 @@ def augment_image(image, value, prob):
     :param image: The image to augment
     :param value: The steering angle associated with the image
     :param prob: The probability of augmenting the image
+    :param im_normalizer: Function to normalize the image
     :return: Tuple with (augmented_image, augmented_value)
 
     :type image: np.ndarray
     :type value: float
     :type prob: float [0.0, 1.0]
+    :type im_normalizer: function
     :rtype: tuple with values (augmented_image, augmented_value)
     """
-    h, w, c = image.shape
+    image = im_normalizer(image)
 
-    # Grayscale and normalize image to [-0.5, 0.5]
-    if c == 3:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    image = image/255. - 0.5
+    h, w = image.shape[:2]
 
     random_uniform = np.random.uniform(0.0, 1.0)
+
+    # Flip the image and angle with probability (prob/2), aka 50% of the time.
+    if random_uniform < prob/2:
+        image, value = cv2.flip(image, 1), -value
+        image = image[..., None]
 
     # Return un-augmented image and value with probability (1-prob)
     if random_uniform > prob:
         return image, value
-
-    # Flip the image and angle with probability (prob/2), aka 50% of the time.
-    if random_uniform < prob/2:
-        image, value = cv2.flip(image, 1), value
-        image = image[..., None]
 
     # Random brightness adjustment
     image += np.random.uniform(-0.3, 0.3)
@@ -122,49 +170,64 @@ def augment_set(data, values, prob):
 
     :param data: Batch of images
     :param values: Batch of corresponding values
+    :param prob: The probability of augmenting an image in the batch
     :return: Tuple containing (augmented_images, augmented_values)
 
     :type data: np.ndarray with shape (N, h, w, ch)
     :type values: np.ndarray with shape (N,)
+    :type prob: float between [0.0, 1.0]
     ":rtype: (np.ndarray, np.ndarray)
     """
     n_obs = data.shape[0]
     assert n_obs == values.shape[0], 'Different # of data and labels.'
 
-    aug_data, aug_vals = [], []
+    aug_batch_data, aug_batch_vals = [], []
     for i, img in enumerate(data):
-        tmp = augment_image(img, values[i], prob)
-        aug_data.append(tmp[0])
-        aug_vals.append(tmp[1])
-
-    return np.array(aug_data), np.array(aug_vals)
+        aug_data, aug_val = augment_image(img, values[i], prob)
+        aug_batch_data.append(aug_data)
+        aug_batch_vals.append(aug_val)
+    return np.array(aug_batch_data), np.array(aug_batch_vals)
 
 
 class BatchGenerator(object):
-    def __init__(self, batch_size, augmentor=lambda x:x, args=()):
+    def __init__(self, batch_size, load=False, path=''):
         self.batch_size = batch_size
-        self.augmentor = augmentor
-        self.args = args
+        self.load = load
+        self.path = path
 
-    def __call__(self, data, values, load=False, path=''):
-        n_obs = data.shape[0]
-        assert n_obs == values.shape[0], 'Different # of data and labels.'
-
-        for batch in range(0, n_obs, self.batch_size):
-            batch_x = data[batch:min(batch + self.batch_size, n_obs), ...]
-            if load:
-                batch_x = np.array([cv2.imread(path + im) for im in batch_x])
-            batch_y = values[batch:min(batch + self.batch_size, n_obs)]
-            yield self.augmentor(batch_x, batch_y, *self.args)
-
-    def keras(self, data, values, load=False, path=''):
+    def validation(self, data, values, augmentor=None):
         n_obs = data.shape[0]
         assert n_obs == values.shape[0], 'Different # of data and labels.'
 
         while True:
             for batch in range(0, n_obs, self.batch_size):
                 batch_x = data[batch:min(batch + self.batch_size, n_obs), ...]
-                if load:
-                    batch_x = np.array([cv2.imread(path + im) for im in batch_x])
                 batch_y = values[batch:min(batch + self.batch_size, n_obs)]
-                yield self.augmentor(batch_x, batch_y, *self.args)
+
+                if self.load:
+                    batch_x = np.array([cv2.imread(self.path + im) for im in batch_x])
+
+                yield batch_x, batch_y
+
+                if augmentor is not None:
+                    batch_x, batch_y = augmentor(np.array(batch_x), np.array(batch_y))
+                    yield batch_x, batch_y
+
+    def keras(self, data, values, augmentor=None, args={}):
+        n_obs = data.shape[0]
+        assert n_obs == values.shape[0], 'Different # of data and labels.'
+
+        while True:
+            batch_x, batch_y = [], []
+            for _ in range(self.batch_size):
+                idx = np.random.randint(0, n_obs-1)
+                batch_x.append(data[idx, ...])
+                batch_y.append(values[idx])
+
+            batch_x, batch_y = np.array(batch_x), np.array(batch_y)
+
+            if self.load:
+                batch_x = np.array([cv2.imread(self.path + im) for im in batch_x])
+            if augmentor is not None:
+                batch_x, batch_y = augmentor(np.array(batch_x), np.array(batch_y), **args)
+            yield batch_x, batch_y
