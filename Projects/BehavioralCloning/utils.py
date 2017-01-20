@@ -207,6 +207,7 @@ class BatchGenerator(object):
                 if self.load:
                     batch_x = np.array([cv2.imread(self.path + im) for im in batch_x])
 
+                batch_x = np.array([normalize_image(im) for im in batch_x])
                 yield batch_x, batch_y
 
                 if augmentor is not None:
