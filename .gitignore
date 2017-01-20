@@ -15,6 +15,6 @@
 .ipynb_checkpoints
 __pycache__
 sdc
-Projects/P3-BehavioralCloning/env
-Projects/P3-BehavioralCloning/Data
-Projects/P3-BehavioralCloning/UdacityData
+Projects/BehavioralCloning/env
+Projects/BehavioralCloning/Data
+Projects/BehavioralCloning/UdacityData
