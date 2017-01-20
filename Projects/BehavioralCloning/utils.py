@@ -69,7 +69,7 @@ def split_data(features, labels, test_size=0.2, shuffle_return=True):
     return train_test_split(features, labels, test_size=test_size)
 
 
-def normalize_image(im):
+def process_image(im):
     """
     Grayscale the image and normalize its pixels to [-0.5, 0.5]
 
@@ -109,14 +109,14 @@ def val_augmentor(ims, vals):
     :param vals: Angles to normalize/flip
     :return: (normalized/flipped images, normalized/flipped angles)
     """
-    normalized = np.array([normalize_image(im) for im in ims])
+    normalized = np.array([process_image(im) for im in ims])
     flipped = flip_image(normalized)
     return np.concatenate((normalized, flipped), axis=0), \
            np.concatenate((vals, -vals), axis=0)
 
 
 @n_images
-def augment_image(image, value, prob, im_normalizer=normalize_image):
+def augment_image(image, value, prob, im_normalizer=process_image):
     """
     Augments an image and steering angle with probability `prob`.
 
