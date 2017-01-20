@@ -34,7 +34,7 @@ Parameters = namedtuple('Parameters', [
     # Optimizer settings
     'learning_rate', 'epsilon', 'decay',
     # Training settings
-    'min_delta', 'patience', 'args'
+    'min_delta', 'patience', 'kwargs'
   ])
 
 params = Parameters(
@@ -43,7 +43,7 @@ params = Parameters(
     # Optimizer settings
     learning_rate=1e-4, epsilon=0.1, decay=0.0,
     # Training settings
-    min_delta=0.0, patience=10, args={'prob': 0.8}
+    min_delta=0.0, patience=10, kwargs={'prob': 0.8}
   )
 
 
@@ -51,6 +51,7 @@ params = Parameters(
 path = '/home/japata/sharefolder/CarND/Projects/BehavioralCloning/Data/'
 data = utils.load_data(path + 'driving_log.csv')
 
+# Remove 90% of the frames where the steering angle is close to zero
 ims, angles = utils.keep_n_percent_of_data_where(
     data=np.array([data['center'], data['right'], data['left']]).T,
     values=data['angles'],
@@ -59,9 +60,12 @@ ims, angles = utils.keep_n_percent_of_data_where(
   )
 center_ims, right_ims, left_ims = ims[..., 0], ims[..., 1], ims[..., 2]
 
+# Modify the steering angles of the left and right cameras's images to simulate
+# steering back towards the middle. Aggregate all sets into one.
 filtered_images = np.concatenate((center_ims, right_ims, left_ims), axis=0)
 filtered_angles = np.concatenate((angles, angles + params.angle_shift, angles - params.angle_shift), axis=0)
 
+# Split the data into training and validation sets
 train_paths, val_paths, train_angles, val_angles = utils.split_data(
     features=filtered_images,
     labels=filtered_angles,
@@ -129,7 +133,6 @@ optimizer = adam(
     epsilon=params.epsilon,
     decay=params.decay
   )
-
 model.compile(optimizer=optimizer, loss='mse')
 
 print('\n', model.summary(), '\n')
@@ -150,7 +153,7 @@ callbacks = [
   ]
 model.fit_generator(
     generator=utils.batch_generator(ims=train_paths, angs=train_angles, batch_size=params.batch_size,
-                                    augmentor=utils.augment_image, args=params.args, path=path),
+                                    augmentor=utils.augment_image, kwargs=params.kwargs, path=path),
     samples_per_epoch=800*params.batch_size,
     nb_epoch=params.max_epochs,
     validation_data=utils.batch_generator(ims=val_paths, angs=val_angles, batch_size=params.batch_size,
