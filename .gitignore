@@ -17,4 +17,5 @@ __pycache__
 sdc
 Projects/BehavioralCloning/env
 Projects/BehavioralCloning/Data
+Projects/BehavioralCloning/UdacityData
 Projects/BehavioralCloning/logs
