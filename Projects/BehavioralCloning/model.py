@@ -18,7 +18,6 @@ from keras.layers.convolutional import Convolution2D
 from keras.layers.advanced_activations import ELU
 from keras.optimizers import adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-from keras.utils.visualize_util import plot
 
 import utils
 
@@ -39,11 +38,11 @@ Parameters = namedtuple('Parameters', [
 
 params = Parameters(
     # General settings
-    batch_size=64, max_epochs=100, angle_shift=0.05,
+    batch_size=64, max_epochs=100, angle_shift=0.1,
     # Optimizer settings
-    learning_rate=1e-4, epsilon=0.1, decay=0.0,
+    learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=0.0, patience=10, kwargs={'prob': 0.8}
+    min_delta=1e-4, patience=10, kwargs={'prob': 0.8}
   )
 
 
@@ -76,53 +75,35 @@ train_paths, val_paths, train_angles, val_angles = utils.split_data(
 
 # Model construction
 model = Sequential([
-    Convolution2D(3, 1, 1, border_mode='valid', init='he_normal', input_shape=(160, 320, 1)),
+    Convolution2D(3, 1, 1, border_mode='valid', init='he_normal', input_shape=(66, 200, 1)),
 
-    Convolution2D(24, 8, 8, border_mode='valid', init='he_normal'),
+    Convolution2D(24, 5, 5, border_mode='valid', init='he_normal', input_shape=(66, 200, 3)),
     MaxPooling2D(pool_size=(2,2), border_mode='valid'),
-    Dropout(0.5),
     ELU(),
 
-    Convolution2D(36, 5, 5, border_mode='valid', init='he_normal'),
-    MaxPooling2D(pool_size=(2, 2), border_mode='valid'),
-    Dropout(0.5),
+    Convolution2D(36, 5, 5, border_mode='valid', init='he_normal', input_shape=(31, 98, 24)),
+    MaxPooling2D(pool_size=(2, 2), border_mode='same'),
     ELU(),
 
-    Convolution2D(48, 5, 5, border_mode='valid', init='he_normal'),
-    MaxPooling2D(pool_size=(2, 2), border_mode='valid'),
-    Dropout(0.5),
+    Convolution2D(48, 5, 5, border_mode='valid', init='he_normal', input_shape=(14, 47, 36)),
+    MaxPooling2D(pool_size=(2, 2), border_mode='same'),
     ELU(),
 
-    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal'),
-    MaxPooling2D(pool_size=(2, 2), border_mode='valid'),
-    Dropout(0.5),
+    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal', input_shape=(5, 22, 48)),
     ELU(),
 
-    Convolution2D(64, 2, 2, border_mode='valid', init='he_normal'),
-    MaxPooling2D(pool_size=(2, 2), border_mode='valid'),
-    Dropout(0.5),
+    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal', input_shape=(3, 20, 64)),
     ELU(),
 
     Flatten(),
 
-    Dense(1024, init='he_normal'),
-    Dropout(0.5),
+    Dense(100, init='he_normal'),
     ELU(),
 
-    Dense(512, init='he_normal'),
-    Dropout(0.5),
+    Dense(50, init='he_normal'),
     ELU(),
 
-    Dense(256, init='he_normal'),
-    Dropout(0.5),
-    ELU(),
-
-    Dense(128, init='he_normal'),
-    Dropout(0.5),
-    ELU(),
-
-    Dense(32, init='he_normal'),
-    Dropout(0.5),
+    Dense(10, init='he_normal'),
     ELU(),
 
     Dense(1)
@@ -140,7 +121,6 @@ print('\n', model.summary(), '\n')
 # Save model structure
 with open('model.json', 'w') as file:
     file.write(model.to_json())
-plot(model, to_file='model.png')
 
 
 # Model training
@@ -154,7 +134,7 @@ callbacks = [
 model.fit_generator(
     generator=utils.batch_generator(ims=train_paths, angs=train_angles, batch_size=params.batch_size,
                                     augmentor=utils.augment_image, kwargs=params.kwargs, path=path),
-    samples_per_epoch=800*params.batch_size,
+    samples_per_epoch=400*params.batch_size,
     nb_epoch=params.max_epochs,
     # Halve the batch size, as `utils.val_augmentor` doubles the batch size by flipping the images and angles
     validation_data=utils.batch_generator(ims=val_paths, angs=val_angles, batch_size=params.batch_size//2,
