@@ -96,6 +96,7 @@ def process_image(im):
     """
     assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
 
+    im = cv2.resize(im, (200, 66))
     im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     im = im/255. - 0.5
 
@@ -179,6 +180,9 @@ def augment_image(image, value, prob, im_normalizer=process_image):
         pt1 = (np.random.randint(0, w), np.random.randint(0, h))
         pt2 = (pt1[0] + sq_w, pt1[1] + sq_h)
         cv2.rectangle(image, pt1, pt2, (-0.5, -0.5, -0.5), -1)
+
+    # Random shadow simulation
+    # TODO: Create
 
     # Rotation/Scaling matrix
     rotation, scale = 1, 0.02
