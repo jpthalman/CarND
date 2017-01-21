@@ -20,11 +20,34 @@ def load_data(file):
                                   'Throttle', 'Break', 'Speed'])
     data = {
         'angles': df['SteeringAngle'].astype('float32').as_matrix(),
-        'center': [im.replace(' ', '') for im in df['CenterImage'].as_matrix()],
-        'right': [im.replace(' ', '') for im in df['RightImage'].as_matrix()],
-        'left': [im.replace(' ', '') for im in df['LeftImage'].as_matrix()]
+        'center': np.array([str(im).replace(' ', '') for im in df['CenterImage'].as_matrix()]),
+        'right': np.array([str(im).replace(' ', '') for im in df['RightImage'].as_matrix()]),
+        'left': np.array([str(im).replace(' ', '') for im in df['LeftImage'].as_matrix()])
       }
     return data
+
+
+def load_udacity(angle_shift, p):
+    path = '/home/japata/sharefolder/CarND/Projects/BehavioralCloning/UdacityData/'
+    data = load_data(path + 'driving_log.csv')
+
+    # Remove 90% of the frames where the steering angle is close to zero
+    ims, angles = keep_n_percent_of_data_where(
+        data=np.array([data['center'], data['right'], data['left']]).T,
+        values=data['angles'],
+        condition_lambda=lambda x: abs(x) < 1e-5,
+        percent=p
+    )
+    center_ims = [path + im for im in ims[..., 0]]
+    right_ims = [path + im for im in ims[..., 1]]
+    left_ims = [path + im for im in ims[..., 2]]
+
+    # Modify the steering angles of the left and right cameras's images to simulate
+    # steering back towards the middle. Aggregate all sets into one.
+    filtered_images = np.concatenate((center_ims, right_ims, left_ims), axis=0)
+    filtered_angles = np.concatenate((angles, angles + angle_shift, angles - angle_shift), axis=0)
+    return filtered_images, filtered_angles
+
 
 
 def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
@@ -175,14 +198,20 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     image += np.random.uniform(-0.3, 0.3)
 
     # Random occlusion with dark squares
-    sq_w, sq_h, sq_count = int(0.15*h), int(0.15*h), 30
-    for i in range(sq_count):
-        pt1 = (np.random.randint(0, w), np.random.randint(0, h))
-        pt2 = (pt1[0] + sq_w, pt1[1] + sq_h)
-        cv2.rectangle(image, pt1, pt2, (-0.5, -0.5, -0.5), -1)
+    # sq_w, sq_h, sq_count = int(0.15*h), int(0.15*h), 30
+    # for i in range(sq_count):
+    #     pt1 = (np.random.randint(0, w), np.random.randint(0, h))
+    #     pt2 = (pt1[0] + sq_w, pt1[1] + sq_h)
+    #     cv2.rectangle(image, pt1, pt2, (-0.5, -0.5, -0.5), -1)
 
     # Random shadow simulation
-    # TODO: Create
+    top_y, bot_y = np.random.randint(0, w, size=2)
+    XX, YY = np.mgrid[0:h, 0:w]
+    shadow = np.zeros_like(image, dtype=np.float32)
+    shadow[XX*(bot_y-top_y) - h*(YY-top_y) >= 0.0] = 1
+
+    mask = shadow == np.random.randint(0, 2)
+    image[mask] -= np.random.uniform(0.3, 0.45)
 
     # Rotation/Scaling matrix
     rotation, scale = 1, 0.02
