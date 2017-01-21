@@ -29,7 +29,7 @@ __email__ = 'jpthalman@gmail.com'
 # Create hyper-parameters
 Parameters = namedtuple('Parameters', [
     # General settings
-    'batch_size', 'max_epochs', 'angle_shift',
+    'batch_size', 'max_epochs', 'path', 'angle_shift',
     # Optimizer settings
     'learning_rate', 'epsilon', 'decay',
     # Training settings
@@ -38,7 +38,7 @@ Parameters = namedtuple('Parameters', [
 
 params = Parameters(
     # General settings
-    batch_size=64, max_epochs=100, angle_shift=0.1,
+    batch_size=64, max_epochs=100, path='', angle_shift=0.1,
     # Optimizer settings
     learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
@@ -46,23 +46,48 @@ params = Parameters(
   )
 
 
-# Load the data
 path = '/home/japata/sharefolder/CarND/Projects/BehavioralCloning/Data/'
-data = utils.load_data(path + 'driving_log.csv')
+
+# Load the data from the middle runs
+center = utils.load_data(path + 'Center/driving_log.csv')
 
 # Remove 90% of the frames where the steering angle is close to zero
-ims, angles = utils.keep_n_percent_of_data_where(
-    data=np.array([data['center'], data['right'], data['left']]).T,
-    values=data['angles'],
+center_ims, center_angs = utils.keep_n_percent_of_data_where(
+    data=center['center'],
+    values=center['angles'],
     condition_lambda=lambda x: abs(x) < 1e-5,
     percent=0.1
   )
-center_ims, right_ims, left_ims = ims[..., 0], ims[..., 1], ims[..., 2]
 
-# Modify the steering angles of the left and right cameras's images to simulate
-# steering back towards the middle. Aggregate all sets into one.
+# Load the data from the left runs
+left = utils.load_data(path + 'Left/driving_log.csv')
+
+# Remove 100% of the frames where the steering angle is less than 1e-5
+# This effectively only keeps the frames where the car is recovering from
+# the left edge.
+left_ims, left_angs = utils.keep_n_percent_of_data_where(
+    data=left['center'],
+    values=left['angles'],
+    condition_lambda=lambda x: x < 1e-5,
+    percent=0.0
+  )
+
+# Load the data from the left runs
+right = utils.load_data(path + 'Right/driving_log.csv')
+
+# Remove 100% of the frames where the steering angle is greater than -1e-5
+# This effectively only keeps the frames where the car is recovering from
+# the right edge.
+right_ims, right_angs = utils.keep_n_percent_of_data_where(
+    data=right['center'],
+    values=right['angles'],
+    condition_lambda=lambda x: x > -1e-5,
+    percent=0.0
+  )
+
+# Aggregate all sets into one.
 filtered_images = np.concatenate((center_ims, right_ims, left_ims), axis=0)
-filtered_angles = np.concatenate((angles, angles + params.angle_shift, angles - params.angle_shift), axis=0)
+filtered_angles = np.concatenate((center_angs, 0.9*right_angs, 0.9*left_angs), axis=0)
 
 # Split the data into training and validation sets
 train_paths, val_paths, train_angles, val_angles = utils.split_data(
@@ -71,6 +96,7 @@ train_paths, val_paths, train_angles, val_angles = utils.split_data(
     test_size=0.2,
     shuffle_return=True
   )
+print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_paths.shape[0]))
 
 
 # Model construction
@@ -133,12 +159,12 @@ callbacks = [
   ]
 model.fit_generator(
     generator=utils.batch_generator(ims=train_paths, angs=train_angles, batch_size=params.batch_size,
-                                    augmentor=utils.augment_image, kwargs=params.kwargs, path=path),
+                                    augmentor=utils.augment_image, path=params.path, kwargs=params.kwargs),
     samples_per_epoch=400*params.batch_size,
     nb_epoch=params.max_epochs,
     # Halve the batch size, as `utils.val_augmentor` doubles the batch size by flipping the images and angles
     validation_data=utils.batch_generator(ims=val_paths, angs=val_angles, batch_size=params.batch_size//2,
-                                          augmentor=utils.val_augmentor, path=path, validation=True),
+                                          augmentor=utils.val_augmentor, validation=True, path=params.path),
     # Double the size of the validation set, as we are flipping the images to balance the right/left
     # distribution.
     nb_val_samples=2*val_paths.shape[0],
