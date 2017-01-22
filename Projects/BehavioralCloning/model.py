@@ -12,7 +12,7 @@ from collections import namedtuple
 
 import numpy as np
 from keras.models import Sequential
-from keras.layers.core import Dense, Dropout, Flatten
+from keras.layers.core import Dense, Dropout, Flatten, Lambda
 from keras.layers.pooling import MaxPooling2D
 from keras.layers.convolutional import Convolution2D
 from keras.layers.advanced_activations import ELU
@@ -46,48 +46,50 @@ params = Parameters(
   )
 
 
+# udacity_paths, udacity_angs = utils.concat_all_cameras(
+#     data=utils.load_data('/home/japata/sharefolder/CarND/Projects/BehavioralCloning/UdacityData/', 'driving_log.csv'),
+#     angle_shift=params.angle_shift,
+#     condition_lambda=lambda x: abs(x) < 1e-5,
+#     keep_percent=0.15
+#   )
+
+
 path = '/home/japata/sharefolder/CarND/Projects/BehavioralCloning/Data/'
 
 # Load the data from the middle runs
-center = utils.load_data(path + 'Center/driving_log.csv')
-
 # Remove 90% of the frames where the steering angle is close to zero
-center_ims, center_angs = utils.keep_n_percent_of_data_where(
-    data=center['center'],
-    values=center['angles'],
+center_ims, center_angs = utils.concat_all_cameras(
+    data=utils.load_data(path + 'Center/', 'driving_log.csv'),
+    angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
-    percent=0.1
+    keep_percent=0.1
   )
 
 # Load the data from the left runs
-left = utils.load_data(path + 'Left/driving_log.csv')
-
 # Remove 100% of the frames where the steering angle is less than 1e-5
 # This effectively only keeps the frames where the car is recovering from
 # the left edge.
-left_ims, left_angs = utils.keep_n_percent_of_data_where(
-    data=left['center'],
-    values=left['angles'],
-    condition_lambda=lambda x: x < 1e-5,
-    percent=0.0
+left_ims, left_angs = utils.concat_all_cameras(
+    data=utils.load_data(path + 'Left/', 'driving_log.csv'),
+    angle_shift=params.angle_shift,
+    condition_lambda=lambda x: x < 0.0,
+    keep_percent=0.0
   )
 
-# Load the data from the left runs
-right = utils.load_data(path + 'Right/driving_log.csv')
-
+# Load the data from the right runs
 # Remove 100% of the frames where the steering angle is greater than -1e-5
 # This effectively only keeps the frames where the car is recovering from
 # the right edge.
-right_ims, right_angs = utils.keep_n_percent_of_data_where(
-    data=right['center'],
-    values=right['angles'],
-    condition_lambda=lambda x: x > -1e-5,
-    percent=0.0
+right_ims, right_angs = utils.concat_all_cameras(
+    data=utils.load_data(path + 'Right/', 'driving_log.csv'),
+    angle_shift=params.angle_shift,
+    condition_lambda=lambda x: x > 0.0,
+    keep_percent=0.0
   )
 
 # Aggregate all sets into one.
 filtered_images = np.concatenate((center_ims, right_ims, left_ims), axis=0)
-filtered_angles = np.concatenate((center_angs, 0.9*right_angs, 0.9*left_angs), axis=0)
+filtered_angles = np.concatenate((center_angs, right_angs, left_angs), axis=0)
 
 # Split the data into training and validation sets
 train_paths, val_paths, train_angles, val_angles = utils.split_data(
@@ -101,7 +103,9 @@ print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_pat
 
 # Model construction
 model = Sequential([
-    Convolution2D(3, 1, 1, border_mode='valid', init='he_normal', input_shape=(66, 200, 1)),
+    Lambda(lambda x: x/255. - 0.5, input_shape=(66, 200, 3)),
+
+    Convolution2D(3, 1, 1, border_mode='valid', init='he_normal', input_shape=(66, 200, 3)),
 
     Convolution2D(24, 5, 5, border_mode='valid', init='he_normal', input_shape=(66, 200, 3)),
     MaxPooling2D(pool_size=(2,2), border_mode='valid'),
