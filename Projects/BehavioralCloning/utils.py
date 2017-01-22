@@ -7,47 +7,47 @@ from sklearn.utils import shuffle
 from decorators import n_images
 
 
-def load_data(file):
+def load_data(path, file):
     """
     Opens driving_log.csv and returns center, left, right, and steering in a dictionary.
 
-    :param file: Full file path to driving_log.csv
+    :param path: Full file path to file
+    :param file: The name of the file to load
+
+    :type path: String
     :type file: String
+
     :return: Dictionary containing the camera file paths and steering angles.
     :rtype: Dictionary with keys = ['angles', 'center', 'left', 'right']
     """
-    df = pd.read_csv(file, names=['CenterImage', 'LeftImage', 'RightImage', 'SteeringAngle',
-                                  'Throttle', 'Break', 'Speed'])
+    df = pd.read_csv(path + file, names=['CenterImage', 'LeftImage', 'RightImage', 'SteeringAngle',
+                                         'Throttle', 'Break', 'Speed'])
     data = {
         'angles': df['SteeringAngle'].astype('float32').as_matrix(),
-        'center': np.array([str(im).replace(' ', '') for im in df['CenterImage'].as_matrix()]),
-        'right': np.array([str(im).replace(' ', '') for im in df['RightImage'].as_matrix()]),
-        'left': np.array([str(im).replace(' ', '') for im in df['LeftImage'].as_matrix()])
+        'center': np.array([path + str(im).replace(' ', '').replace('\\', '/') for im in df['CenterImage'].as_matrix()]),
+        'right': np.array([path + str(im).replace(' ', '').replace('\\', '/') for im in df['RightImage'].as_matrix()]),
+        'left': np.array([path + str(im).replace(' ', '').replace('\\', '/') for im in df['LeftImage'].as_matrix()])
       }
     return data
 
 
-def load_udacity(angle_shift, p):
-    path = '/home/japata/sharefolder/CarND/Projects/BehavioralCloning/UdacityData/'
-    data = load_data(path + 'driving_log.csv')
-
-    # Remove 90% of the frames where the steering angle is close to zero
+def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent):
+    # Remove n% of the frames where the steering angle is close to zero
     ims, angles = keep_n_percent_of_data_where(
         data=np.array([data['center'], data['right'], data['left']]).T,
         values=data['angles'],
-        condition_lambda=lambda x: abs(x) < 1e-5,
-        percent=p
+        condition_lambda=condition_lambda,
+        percent=keep_percent
     )
-    center_ims = [path + im for im in ims[..., 0]]
-    right_ims = [path + im for im in ims[..., 1]]
-    left_ims = [path + im for im in ims[..., 2]]
+    center_ims = [im for im in ims[..., 0]]
+    right_ims = [im for im in ims[..., 1]]
+    left_ims = [im for im in ims[..., 2]]
 
     # Modify the steering angles of the left and right cameras's images to simulate
     # steering back towards the middle. Aggregate all sets into one.
     filtered_images = np.concatenate((center_ims, right_ims, left_ims), axis=0)
     filtered_angles = np.concatenate((angles, angles + angle_shift, angles - angle_shift), axis=0)
     return filtered_images, filtered_angles
-
 
 
 def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
@@ -119,9 +119,9 @@ def process_image(im):
     """
     assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
 
+    im = im[40:130, :]
     im = cv2.resize(im, (200, 66))
-    im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-    im = im/255. - 0.5
+    # im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
 
     if im.ndim == 2:
         im = np.expand_dims(im, -1)
@@ -188,14 +188,11 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     # the dataset while balancing the left and right turn proportions.
     if np.random.uniform(0.0, 1.0) < 0.5:
         image, value = cv2.flip(image, 1), -value
-        image = np.expand_dims(image, -1)
+        # image = np.expand_dims(image, -1)
 
     # Return un-augmented image and value with probability (1-prob)
     if np.random.uniform(0.0, 1.0) > prob:
         return image, value
-
-    # Random brightness adjustment
-    image += np.random.uniform(-0.3, 0.3)
 
     # Random occlusion with dark squares
     # sq_w, sq_h, sq_count = int(0.15*h), int(0.15*h), 30
@@ -205,13 +202,19 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     #     cv2.rectangle(image, pt1, pt2, (-0.5, -0.5, -0.5), -1)
 
     # Random shadow simulation
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    image = image.astype(np.float32)
+
     top_y, bot_y = np.random.randint(0, w, size=2)
     XX, YY = np.mgrid[0:h, 0:w]
-    shadow = np.zeros_like(image, dtype=np.float32)
+    shadow = np.zeros_like(image[..., 2], dtype=np.float32)
     shadow[XX*(bot_y-top_y) - h*(YY-top_y) >= 0.0] = 1
 
     mask = shadow == np.random.randint(0, 2)
-    image[mask] -= np.random.uniform(0.3, 0.45)
+    image[..., 2][mask] *= np.random.uniform(0.3, 1.0)
+
+    image = image.astype(np.uint8)
+    image = cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
 
     # Rotation/Scaling matrix
     rotation, scale = 1, 0.02
