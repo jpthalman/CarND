@@ -25,7 +25,7 @@ def n_images(f):
     def _f(images, values, *args, **kwargs):
         assert isinstance(images, np.ndarray), '`images` must be a np.ndarray'
         assert isinstance(values, np.ndarray), '`values` must be a np.ndarray'
-        assert images.ndim == 4, '`images` must be a 4d np.ndarray with dims (n_obs, h, w, ch)'
+        assert images.ndim == 4, '`images` must be a 4d np.ndarray with dims (n_obs, h, w, ch), not %r.' % images.shape
 
         n_obs = images.shape[0]
         assert n_obs == values.shape[0], 'Different # of data and values.'

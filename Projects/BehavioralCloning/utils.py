@@ -119,9 +119,9 @@ def process_image(im):
     """
     assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
 
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     im = im[40:130, :]
     im = cv2.resize(im, (200, 66))
-    # im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
 
     if im.ndim == 2:
         im = np.expand_dims(im, -1)
@@ -188,7 +188,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     # the dataset while balancing the left and right turn proportions.
     if np.random.uniform(0.0, 1.0) < 0.5:
         image, value = cv2.flip(image, 1), -value
-        # image = np.expand_dims(image, -1)
+        image = np.expand_dims(image, -1)
 
     # Return un-augmented image and value with probability (1-prob)
     if np.random.uniform(0.0, 1.0) > prob:
@@ -202,19 +202,18 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     #     cv2.rectangle(image, pt1, pt2, (-0.5, -0.5, -0.5), -1)
 
     # Random shadow simulation
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     image = image.astype(np.float32)
 
     top_y, bot_y = np.random.randint(0, w, size=2)
     XX, YY = np.mgrid[0:h, 0:w]
-    shadow = np.zeros_like(image[..., 2], dtype=np.float32)
+    shadow = np.zeros_like(image, dtype=np.float32)
     shadow[XX*(bot_y-top_y) - h*(YY-top_y) >= 0.0] = 1
 
     mask = shadow == np.random.randint(0, 2)
-    image[..., 2][mask] *= np.random.uniform(0.3, 1.0)
+    image[mask] *= np.random.uniform(0.4, 1.0)
 
-    image = image.astype(np.uint8)
-    image = cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
+    # Randomly augment total brightness
+    image *= np.random.uniform(0.6, 1.0)
 
     # Rotation/Scaling matrix
     rotation, scale = 1, 0.02
@@ -248,7 +247,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
         augmented = np.expand_dims(augmented, -1)
 
     # Add random noise to steering angle
-    rand_ang = 0.005
+    rand_ang = 0.001
     value += np.random.uniform(-rand_ang, rand_ang)
     return augmented, value
 
