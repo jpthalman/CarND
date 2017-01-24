@@ -28,6 +28,14 @@ import utils
 __author__ = 'Jacob Thalman'
 __email__ = 'jpthalman@gmail.com'
 
+# TODO:
+# Use discarded straight paths from the 'center' images as a validation set.
+# This will force the model to learn from images in which it has to turn,
+# but it will be evaluated on how well it can go straight.
+#
+# Discard images AFTER concatenating the camera viewpoints and shifting the
+# angles for the left and right cameras.
+
 
 # Create hyper-parameters
 Parameters = namedtuple('Parameters', [
@@ -47,9 +55,9 @@ params = Parameters(
     # Model settings
     l2_reg=0.0, keep_prob=0.5,
     # Optimizer settings
-    learning_rate=1e-2, epsilon=1e-8, decay=0.0,
+    learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=1e-4, patience=10, kwargs={'prob': 0.6}
+    min_delta=1e-4, patience=10, kwargs={'prob': 0.75}
   )
 
 
