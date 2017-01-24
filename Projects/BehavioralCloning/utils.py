@@ -215,6 +215,8 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     # Randomly augment total brightness
     image *= np.random.uniform(0.6, 1.0)
 
+    image.astype(np.uint8)
+
     # Rotation/Scaling matrix
     rotation, scale = 1, 0.02
     M_rot = cv2.getRotationMatrix2D(
