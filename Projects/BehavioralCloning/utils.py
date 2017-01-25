@@ -32,22 +32,19 @@ def load_data(path, file):
 
 
 def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent):
-    # Remove n% of the frames where the steering angle is close to zero
-    ims, angles = keep_n_percent_of_data_where(
-        data=np.array([data['center'], data['right'], data['left']]).T,
-        values=data['angles'],
-        condition_lambda=condition_lambda,
-        percent=keep_percent
-    )
-    center_ims = [im for im in ims[..., 0]]
-    right_ims = [im for im in ims[..., 1]]
-    left_ims = [im for im in ims[..., 2]]
-
     # Modify the steering angles of the left and right cameras's images to simulate
     # steering back towards the middle. Aggregate all sets into one.
-    filtered_images = np.concatenate((center_ims, right_ims, left_ims), axis=0)
-    filtered_angles = np.concatenate((angles, angles + angle_shift, angles - angle_shift), axis=0)
-    return filtered_images, filtered_angles
+    ims = np.concatenate((data['center'], data['right'], data['left']), axis=0)
+    angs = np.concatenate((data['angles'], data['angles'] - angle_shift, data['angles'] + angle_shift), axis=0)
+
+    # Remove n% of the frames where the steering angle is close to zero
+    filtered_ims, filtered_angs = keep_n_percent_of_data_where(
+        data=ims,
+        values=angs,
+        condition_lambda=condition_lambda,
+        percent=keep_percent
+      )
+    return filtered_ims, filtered_angs
 
 
 def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
