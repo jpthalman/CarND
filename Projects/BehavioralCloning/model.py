@@ -32,9 +32,6 @@ __email__ = 'jpthalman@gmail.com'
 # Use discarded straight paths from the 'center' images as a validation set.
 # This will force the model to learn from images in which it has to turn,
 # but it will be evaluated on how well it can go straight.
-#
-# Discard images AFTER concatenating the camera viewpoints and shifting the
-# angles for the left and right cameras.
 
 
 # Create hyper-parameters
@@ -46,7 +43,7 @@ Parameters = namedtuple('Parameters', [
     # Optimizer settings
     'learning_rate', 'epsilon', 'decay',
     # Training settings
-    'min_delta', 'patience', 'kwargs'
+    'patience', 'kwargs'
   ])
 
 params = Parameters(
@@ -57,10 +54,11 @@ params = Parameters(
     # Optimizer settings
     learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=1e-4, patience=10, kwargs={'prob': 0.75}
+    patience=10, kwargs={'prob': 0.75}
   )
 
 
+# Load Udacity's Data
 udacity_paths, udacity_angs = utils.concat_all_cameras(
     data=utils.load_data('/home/japata/sharefolder/CarND/Projects/BehavioralCloning/UdacityData/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
@@ -103,17 +101,25 @@ right_ims, right_angs = utils.concat_all_cameras(
   )
 
 # Aggregate all sets into one.
-filtered_paths = np.concatenate((center_ims, right_ims, left_ims), axis=0)
-filtered_angs = np.concatenate((center_angs, right_angs, left_angs), axis=0)
+filtered_paths = np.concatenate((udacity_paths, center_ims, right_ims, left_ims), axis=0)
+filtered_angs = np.concatenate((udacity_angs, center_angs, right_angs, left_angs), axis=0)
 
 # Split the data into training and validation sets
 train_paths, val_paths, train_angles, val_angles = utils.split_data(
     features=filtered_paths,
     labels=filtered_angs,
-    test_size=0.12,
+    test_size=0.2,
     shuffle_return=True
   )
-print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_paths.shape[0]))
+
+val_size = val_paths.shape[0]
+# Set the minimum change in validation accuracy to the resolution of the validation set
+min_delta = 30 / (2*val_size)
+
+print('Training size: %d | Validation size: %d | Min Delta: %04.4f'
+      % (train_paths.shape[0], val_size, min_delta))
+
+
 
 
 # Model construction
@@ -186,7 +192,7 @@ except FileNotFoundError:
 
 # Model training
 callbacks = [
-    EarlyStopping(monitor='val_loss', min_delta=params.min_delta, patience=params.patience,
+    EarlyStopping(monitor='val_loss', min_delta=min_delta, patience=params.patience,
                   mode='min'),
     ModelCheckpoint(filepath='model.h5', monitor='val_loss', save_best_only=True,
                     save_weights_only=True, mode='min'),
