@@ -43,7 +43,7 @@ Parameters = namedtuple('Parameters', [
     # Optimizer settings
     'learning_rate', 'epsilon', 'decay',
     # Training settings
-    'patience', 'kwargs'
+    'min_delta', 'patience', 'kwargs'
   ])
 
 params = Parameters(
@@ -54,7 +54,7 @@ params = Parameters(
     # Optimizer settings
     learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
-    patience=10, kwargs={'prob': 0.75}
+    min_delta=1e-4, patience=10, kwargs={'prob': 0.75}
   )
 
 
@@ -112,19 +112,13 @@ train_paths, val_paths, train_angles, val_angles = utils.split_data(
     shuffle_return=True
   )
 
-val_size = val_paths.shape[0]
-# Set the minimum change in validation accuracy to the resolution of the validation set
-min_delta = 30 / (2*val_size)
-
-print('Training size: %d | Validation size: %d | Min Delta: %04.4f'
-      % (train_paths.shape[0], val_size, min_delta))
-
-
+print('Training size: %d | Validation size: %d'
+      % (train_paths.shape[0], val_paths.shape[0]))
 
 
 # Model construction
 model = Sequential([
-    Lambda(lambda x: x/255. - 0.5, input_shape=(66, 200, 1)),
+    Lambda(lambda x: x/255. - 0.5, input_shape=(66, 200, 3)),
 
     Convolution2D(3, 1, 1, border_mode='valid', init='he_normal'),
 
@@ -192,7 +186,7 @@ except FileNotFoundError:
 
 # Model training
 callbacks = [
-    EarlyStopping(monitor='val_loss', min_delta=min_delta, patience=params.patience,
+    EarlyStopping(monitor='val_loss', min_delta=params.min_delta, patience=params.patience,
                   mode='min'),
     ModelCheckpoint(filepath='model.h5', monitor='val_loss', save_best_only=True,
                     save_weights_only=True, mode='min'),
@@ -215,3 +209,13 @@ model.fit_generator(
 # Save model structure
 with open('model.json', 'w') as file:
     file.write(model.to_json())
+
+
+# Fine tune on straight runs
+model.fit_generator(
+    generator=utils.batch_generator(ims=center_ims, angs=center_angs, batch_size=params.batch_size,
+                                    augmentor=utils.val_augmentor, path=params.path),
+    samples_per_epoch=800*params.batch_size,
+    nb_epoch=10,
+    callbacks=callbacks
+  )
