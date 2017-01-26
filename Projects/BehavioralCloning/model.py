@@ -14,6 +14,7 @@ import os
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Flatten, Lambda
+from keras.layers.normalization import BatchNormalization
 from keras.layers.pooling import MaxPooling2D
 from keras.layers.convolutional import Convolution2D
 from keras.regularizers import l2
@@ -120,44 +121,53 @@ model = Sequential([
 
     Convolution2D(3, 1, 1, border_mode='valid', init='he_normal'),
 
-    Convolution2D(24, 5, 5, border_mode='valid', init='he_normal'),
+    # 66x200x3
+    Convolution2D(24, 5, 5, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     # 62x194x24
     MaxPooling2D(pool_size=(2,2), border_mode='valid'),
     ELU(),
 
     # 31x98x24
-    Convolution2D(36, 5, 5, border_mode='valid', init='he_normal'),
+    Convolution2D(36, 5, 5, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     # 27x94x36
     MaxPooling2D(pool_size=(2,2), border_mode='same'),
     ELU(),
 
     # 13x47x36
-    Convolution2D(48, 5, 5, border_mode='valid', init='he_normal'),
+    Convolution2D(48, 5, 5, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     # 9x43x48
     MaxPooling2D(pool_size=(2,2), border_mode='same'),
     ELU(),
 
     # 5x22x48
-    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal'),
+    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     ELU(),
 
     # 3x20x64
-    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal'),
+    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     ELU(),
 
     # 1x18x64
     Flatten(),
 
-    Dense(100, init='he_normal'),
+    Dense(100, init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     ELU(),
 
-    Dense(50, init='he_normal'),
+    Dense(50, init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     ELU(),
 
-    Dense(10, init='he_normal'),
+    Dense(10, init='he_normal', W_regularizer=l2(params.l2_reg)),
+    BatchNormalization(),
     PReLU(),
 
-    Dense(1, init='he_normal')
+    Dense(1, init='he_normal', W_regularizer=l2(params.l2_reg))
   ])
 
 optimizer = adam(
