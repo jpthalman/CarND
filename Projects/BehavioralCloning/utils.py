@@ -127,13 +127,13 @@ def split_data(features, labels, test_size=0.2, shuffle_return=True):
 
 def process_image(im):
     """
-    Grayscale the image and normalize its pixels to [-0.5, 0.5]
+    Crop image, convert to HSV, and resize.
 
     :param im: Image to normalize
-    :return: Normalized image with shape (h, w, 1)
+    :return: Normalized image with shape (h, w, ch)
 
     :type im: np.ndarray with shape (h, w, 3)
-    :rtype: np.ndarray with shape (h, w, 1)
+    :rtype: np.ndarray with shape (h, w, ch)
     """
     assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
 
