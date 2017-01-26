@@ -58,21 +58,20 @@ params = Parameters(
   )
 
 
+path = '/home/japata/sharefolder/CarND/Projects/BehavioralCloning/'
+
 # Load Udacity's Data
 udacity_paths, udacity_angs = utils.concat_all_cameras(
-    data=utils.load_data('/home/japata/sharefolder/CarND/Projects/BehavioralCloning/UdacityData/', 'driving_log.csv'),
+    data=utils.load_data(path + 'UdacityData/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
     keep_percent=0.15
   )
 
-
-path = '/home/japata/sharefolder/CarND/Projects/BehavioralCloning/Data/'
-
 # Load the data from the middle runs
 # Remove 90% of the frames where the steering angle is close to zero
-center_ims, center_angs = utils.concat_all_cameras(
-    data=utils.load_data(path + 'Center/', 'driving_log.csv'),
+center_paths, center_angs = utils.concat_all_cameras(
+    data=utils.load_data(path + 'Data/Center/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
     keep_percent=0.15
@@ -82,8 +81,8 @@ center_ims, center_angs = utils.concat_all_cameras(
 # Remove 100% of the frames where the steering angle is less than 1e-5
 # This effectively only keeps the frames where the car is recovering from
 # the left edge.
-left_ims, left_angs = utils.concat_all_cameras(
-    data=utils.load_data(path + 'Left/', 'driving_log.csv'),
+left_paths, left_angs = utils.concat_all_cameras(
+    data=utils.load_data(path + 'Data/Left/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: x < 1e-5,
     keep_percent=0.0
@@ -93,15 +92,15 @@ left_ims, left_angs = utils.concat_all_cameras(
 # Remove 100% of the frames where the steering angle is greater than -1e-5
 # This effectively only keeps the frames where the car is recovering from
 # the right edge.
-right_ims, right_angs = utils.concat_all_cameras(
-    data=utils.load_data(path + 'Right/', 'driving_log.csv'),
+right_paths, right_angs = utils.concat_all_cameras(
+    data=utils.load_data(path + 'Data/Right/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: x > -1e-5,
     keep_percent=0.0
   )
 
 # Aggregate all sets into one.
-filtered_paths = np.concatenate((udacity_paths, center_ims, right_ims, left_ims), axis=0)
+filtered_paths = np.concatenate((udacity_paths, center_paths, right_paths, left_paths), axis=0)
 filtered_angs = np.concatenate((udacity_angs, center_angs, right_angs, left_angs), axis=0)
 
 # Split the data into training and validation sets
@@ -112,8 +111,7 @@ train_paths, val_paths, train_angles, val_angles = utils.split_data(
     shuffle_return=True
   )
 
-print('Training size: %d | Validation size: %d'
-      % (train_paths.shape[0], val_paths.shape[0]))
+print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_paths.shape[0]))
 
 
 # Model construction
@@ -160,7 +158,7 @@ model = Sequential([
     Activation('relu'),
 
     Dense(1, init='he_normal')
-])
+  ])
 
 optimizer = adam(
     lr=params.learning_rate,
@@ -213,9 +211,9 @@ with open('model.json', 'w') as file:
 
 # Fine tune on straight runs
 model.fit_generator(
-    generator=utils.batch_generator(ims=center_ims, angs=center_angs, batch_size=params.batch_size,
-                                    augmentor=utils.val_augmentor, path=params.path),
-    samples_per_epoch=800*params.batch_size,
+    generator=utils.batch_generator(ims=center_paths, angs=center_angs, batch_size=params.batch_size//2,
+                                    augmentor=utils.val_augmentor, validation=True, path=params.path),
+    samples_per_epoch=2*center_paths.shape[0],
     nb_epoch=10,
     callbacks=callbacks
   )
