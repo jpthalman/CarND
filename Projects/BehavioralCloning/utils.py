@@ -154,6 +154,36 @@ def val_augmentor(ims, vals):
            np.concatenate((vals, flipped_vals), axis=0)
 
 
+def add_random_shadow(im):
+    """
+    Adds a random shadow to the image. Must be a 2D numpy.ndarray.
+
+    If you would like to add a shadow to a color image, run this function over the
+    brightness channel only. E.G. convert to HSV and use this function on the V channel.
+
+    :param im: The image to shadow. Must be only the brightness channel
+    :return: 2D array with a random shadow and augmented total brightness.
+    """
+    assert im.ndim == 2, 'Image must have dimensions (h, w)'
+
+    h, w = im.shape[:2]
+    im = im.astype(np.float32)
+
+    # Define line to create shadow on by creating an image mask
+    top_y, bot_y = np.random.randint(0, w, size=2)
+    XX, YY = np.mgrid[0:h, 0:w]
+    shadow = np.zeros_like(im, dtype=np.float32)
+    shadow[XX*(bot_y-top_y) - h*(YY-top_y) >= 0.0] = 1
+
+    # Randomly choose a side of the line and darken it
+    mask = shadow == np.random.randint(0, 2)
+    im[mask] *= np.random.uniform(0.4, 1.0)
+
+    # Randomly augment total brightness
+    im *= np.random.uniform(0.6, 1.0)
+    return im.astype(np.uint8)
+
+
 @n_images  # Decorator to generalize single image method to multiple images
 def augment_image(image, value, prob, im_normalizer=process_image):
     """
@@ -179,7 +209,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
 
     image = im_normalizer(image)
 
-    h, w = image.shape[:2]
+    h, w, color_channels = image.shape
 
     # Flip the image and angle half the time. Effectively doubles the size of
     # the dataset while balancing the left and right turn proportions.
@@ -200,20 +230,12 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     #     cv2.rectangle(image, pt1, pt2, (-0.5, -0.5, -0.5), -1)
 
     # Random shadow simulation
-    image = image.astype(np.float32)
+    if color_channels == 3:
+        image[..., 2] = add_random_shadow(image[..., 2])
+    if color_channels == 1:
+        image[..., 0] = add_random_shadow(image[..., 0])
 
-    top_y, bot_y = np.random.randint(0, w, size=2)
-    XX, YY = np.mgrid[0:h, 0:w]
-    shadow = np.zeros_like(image[..., 2], dtype=np.float32)
-    shadow[XX*(bot_y-top_y) - h*(YY-top_y) >= 0.0] = 1
-
-    mask = shadow == np.random.randint(0, 2)
-    image[..., 2][mask] *= np.random.uniform(0.4, 1.0)
-
-    # Randomly augment total brightness
-    image[..., 2] *= np.random.uniform(0.6, 1.0)
-
-    image = image.astype(np.uint8)
+    assert image.ndim == 3, 'Sanity check failed in `augment_image`, expand dimensions.'
 
     # Rotation/Scaling matrix
     rotation, scale = 1, 0.02
@@ -224,7 +246,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
       )
 
     # Shifts/Affine transforms
-    src = np.array([[0,0], [w,0], [w,h]]).astype('float32')
+    src = np.array([[0,0], [w,0], [w,h]]).astype(np.float32)
 
     pixel_shift = 2
     x_shift = np.random.randint(-pixel_shift, pixel_shift)
@@ -234,7 +256,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
         [0 + x_shift, 0 + y_shift],
         [w + x_shift, 0 + y_shift],
         [w + x_shift, h + y_shift]
-      ]).astype('float32')
+      ]).astype(np.float32)
 
     M_affine = cv2.getAffineTransform(src, dst)
 
@@ -243,13 +265,13 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     augmented = cv2.warpAffine(augmented, M_affine, (w,h))
 
     # Ensure there is a color channel
-    if augmented.ndim < 3:
+    if augmented.ndim == 2:
         augmented = np.expand_dims(augmented, -1)
 
     # Add random noise to steering angle
     rand_ang = 0.001
     value += np.random.uniform(-rand_ang, rand_ang)
-    return augmented, value
+    return augmented.astype(np.uint8), value
 
 
 def batch_generator(ims, angs, batch_size, augmentor, path, kwargs={}, validation=False):
