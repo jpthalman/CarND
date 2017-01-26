@@ -123,39 +123,39 @@ model = Sequential([
     Convolution2D(24, 5, 5, border_mode='valid', init='he_normal'),
     # 62x194x24
     MaxPooling2D(pool_size=(2,2), border_mode='valid'),
-    Activation('relu'),
+    ELU(),
 
     # 31x98x24
     Convolution2D(36, 5, 5, border_mode='valid', init='he_normal'),
     # 27x94x36
     MaxPooling2D(pool_size=(2,2), border_mode='same'),
-    Activation('relu'),
+    ELU(),
 
     # 13x47x36
     Convolution2D(48, 5, 5, border_mode='valid', init='he_normal'),
     # 9x43x48
     MaxPooling2D(pool_size=(2,2), border_mode='same'),
-    Activation('relu'),
+    ELU(),
 
     # 5x22x48
     Convolution2D(64, 3, 3, border_mode='valid', init='he_normal'),
-    Activation('relu'),
+    ELU(),
 
     # 3x20x64
     Convolution2D(64, 3, 3, border_mode='valid', init='he_normal'),
-    Activation('relu'),
+    ELU(),
 
     # 1x18x64
     Flatten(),
 
     Dense(100, init='he_normal'),
-    Activation('relu'),
+    ELU(),
 
     Dense(50, init='he_normal'),
-    Activation('relu'),
+    ELU(),
 
     Dense(10, init='he_normal'),
-    Activation('relu'),
+    PReLU(),
 
     Dense(1, init='he_normal')
   ])
