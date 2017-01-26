@@ -22,6 +22,15 @@ def disabled(f):
 
 @decorator
 def n_images(f):
+    """
+    Generalizes a function that acts on an image/angle pair to multiple images/angles.
+
+    Given a function that takes in a single image and steering angle, this decorator will
+    generalize the function to act on batches of images and angles.
+
+    :param f: The function to generalize.
+    :return: A function which will apply `f` to a batch of images/angles
+    """
     def _f(images, values, *args, **kwargs):
         assert isinstance(images, np.ndarray), '`images` must be a np.ndarray'
         assert isinstance(values, np.ndarray), '`values` must be a np.ndarray'
@@ -41,6 +50,12 @@ def n_images(f):
 
 @decorator
 def timeit(f):
+    """
+    Stores the last runtime of the function in `f.last_runtime`, and the average runtime in `f.avg_runtime`.
+
+    :param f: The function to time.
+    :return: The same function, but with runtime statistics.
+    """
     runtimes = []
 
     def _f(*args, **kwargs):
