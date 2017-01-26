@@ -32,19 +32,40 @@ def load_data(path, file):
 
 
 def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent):
+    """
+    Concatenates left, right, and center paths and angles, shifting the left/right angles by `angle_shift`.
+
+    An example of the usage of the condition lambda is if you want to remove 90% of the samples in a dataset
+    where the steering angles are close to zero, the code would look like this:
+
+        images, angles = concat_all_cameras(
+            data=data,
+            angle_shift=0.1,
+            condition_lambda=lambda x: abs(x) < 1e-5,
+            keep_percent=0.1
+          )
+
+    Note that the lambda should return True for the values you would like to filter.
+
+    :param data: Dictionary containing ['angles', 'center', 'left', 'right']
+    :param angle_shift: The amount to shift the left/right camera images by.
+    :param condition_lambda: Condition by which to keep data.
+    :param keep_percent: Percent of data to keep where `condition_lambda` is true.
+    :return: Tuple containing (paths, angles)
+    """
     # Modify the steering angles of the left and right cameras's images to simulate
     # steering back towards the middle. Aggregate all sets into one.
     ims = np.concatenate((data['center'], data['right'], data['left']), axis=0)
     angs = np.concatenate((data['angles'], data['angles'] - angle_shift, data['angles'] + angle_shift), axis=0)
 
     # Remove n% of the frames where the steering angle is close to zero
-    filtered_ims, filtered_angs = keep_n_percent_of_data_where(
+    filtered_paths, filtered_angs = keep_n_percent_of_data_where(
         data=ims,
         values=angs,
         condition_lambda=condition_lambda,
         percent=keep_percent
       )
-    return filtered_ims, filtered_angs
+    return filtered_paths, filtered_angs
 
 
 def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
