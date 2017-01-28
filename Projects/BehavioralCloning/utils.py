@@ -178,9 +178,16 @@ def add_random_shadow(im):
 
     # Define line to create shadow on by creating an image mask
     top_y, bot_y = np.random.randint(0, w, size=2)
+    left_x, right_x = np.random.randint(0, h, size=2)
+
     XX, YY = np.mgrid[0:h, 0:w]
     shadow = np.zeros_like(im, dtype=np.float32)
-    shadow[XX*(bot_y-top_y) - h*(YY-top_y) >= 0.0] = 1
+
+    # Randomly create a vertical or horizontal mask
+    if np.random.choice(['vertical', 'horizontal']) == 'vertical':
+        shadow[XX*(bot_y-top_y) - h*(YY-top_y) >= 0.0] = 1.0
+    else:
+        shadow[(XX-left_x)*(0-w) - (right_x-left_x)*(YY-w) >= 0.0] = 1.0
 
     # Randomly choose a side of the line and darken it
     mask = shadow == np.random.randint(0, 2)
@@ -241,8 +248,6 @@ def augment_image(image, value, prob, im_normalizer=process_image):
         image[..., 2] = add_random_shadow(image[..., 2])
     if color_channels == 1:
         image[..., 0] = add_random_shadow(image[..., 0])
-
-    assert image.ndim == 3, 'Sanity check failed in `augment_image`, expand dimensions.'
 
     # Rotation/Scaling matrix
     rotation, scale = 1, 0.02
