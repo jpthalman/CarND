@@ -138,8 +138,8 @@ def process_image(im):
     assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
 
     im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
-    im = im[40:130, :]
-    im = cv2.resize(im, (200, 66))
+    im = im[20:140, :]
+    im = cv2.resize(im, (64, 64))
 
     if im.ndim == 2:
         im = np.expand_dims(im, -1)
@@ -159,20 +159,6 @@ def flip_image(image, angle):
     if flipped.ndim == 2:
         flipped = np.expand_dims(flipped, -1)
     return flipped, -angle
-
-
-def val_augmentor(ims, vals):
-    """
-    Normalizes images/vals into first set, flips and concats into second set, concats both sets, and returns.
-
-    :param ims: Images to normalize/flip
-    :param vals: Angles to normalize/flip
-    :return: (normalized/flipped images, normalized/flipped angles)
-    """
-    normalized = np.array([process_image(im) for im in ims])
-    flipped_ims, flipped_vals = flip_image(normalized, vals)
-    return np.concatenate((normalized, flipped_ims), axis=0), \
-           np.concatenate((vals, flipped_vals), axis=0)
 
 
 def add_random_shadow(im):
@@ -198,7 +184,7 @@ def add_random_shadow(im):
 
     # Randomly choose a side of the line and darken it
     mask = shadow == np.random.randint(0, 2)
-    im[mask] *= np.random.uniform(0.4, 1.0)
+    im[mask] *= np.random.uniform(0.4, 0.8)
 
     # Randomly augment total brightness
     im *= np.random.uniform(0.6, 1.0)
@@ -295,6 +281,20 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     return augmented.astype(np.uint8), value
 
 
+def val_augmentor(ims, vals):
+    """
+    Normalizes images/vals into first set, flips and concats into second set, concats both sets, and returns.
+
+    :param ims: Images to normalize/flip
+    :param vals: Angles to normalize/flip
+    :return: (normalized/flipped images, normalized/flipped angles)
+    """
+    normalized = np.array([process_image(im) for im in ims])
+    flipped_ims, flipped_vals = flip_image(normalized, vals)
+    return np.concatenate((normalized, flipped_ims), axis=0), \
+           np.concatenate((vals, flipped_vals), axis=0)
+
+
 def batch_generator(ims, angs, batch_size, augmentor, path, kwargs={}, validation=False):
     """
     Continuously generates batches from the provided images paths and angles.
@@ -323,7 +323,10 @@ def batch_generator(ims, angs, batch_size, augmentor, path, kwargs={}, validatio
     assert n_obs == angs.shape[0], 'Different # of data and labels.'
 
     while True:
-        for batch in range(0, n_obs, batch_size):
+        ims, angs = shuffle(ims, angs)
+        batch_starts = np.arange(0, n_obs, batch_size)
+
+        for batch in np.random.permutation(batch_starts):
             next_idx = batch + batch_size
             batch_x = ims[batch:min(next_idx, n_obs), ...]
             batch_y = angs[batch:min(next_idx, n_obs), ...]
