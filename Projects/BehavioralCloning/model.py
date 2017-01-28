@@ -18,8 +18,8 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.pooling import MaxPooling2D
 from keras.layers.convolutional import Convolution2D
 from keras.regularizers import l2
-from keras.layers.advanced_activations import ELU, PReLU
 from keras.layers import Activation
+from keras.layers.advanced_activations import ELU, PReLU
 from keras.optimizers import adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 
@@ -49,13 +49,13 @@ Parameters = namedtuple('Parameters', [
 
 params = Parameters(
     # General settings
-    batch_size=64, max_epochs=100, path='', angle_shift=0.15,
+    batch_size=64, max_epochs=100, path='', angle_shift=0.1,
     # Model settings
-    l2_reg=0.0, keep_prob=0.5,
+    l2_reg=1e-5, keep_prob=0.5,
     # Optimizer settings
     learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=1e-4, patience=10, kwargs={'prob': 0.75}
+    min_delta=1e-4, patience=5, kwargs={'prob': 0.8}
   )
 
 
@@ -66,7 +66,7 @@ udacity_paths, udacity_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'UdacityData/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
-    keep_percent=0.15
+    keep_percent=0.8
   )
 
 # Load the data from the middle runs
@@ -75,7 +75,7 @@ center_paths, center_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'Data/Center/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
-    keep_percent=0.15
+    keep_percent=1.0
   )
 
 # Load the data from the left runs
@@ -85,7 +85,7 @@ center_paths, center_angs = utils.concat_all_cameras(
 left_paths, left_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'Data/Left/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
-    condition_lambda=lambda x: x < 1e-5,
+    condition_lambda=lambda x: np.array([True if i < 1e-5 or i > 0.9 else False for i in x]),
     keep_percent=0.0
   )
 
@@ -96,7 +96,7 @@ left_paths, left_angs = utils.concat_all_cameras(
 right_paths, right_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'Data/Right/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
-    condition_lambda=lambda x: x > -1e-5,
+    condition_lambda=lambda x: np.array([True if i > -1e-5 or i < -0.9 else False for i in x]),
     keep_percent=0.0
   )
 
@@ -105,7 +105,7 @@ filtered_paths = np.concatenate((udacity_paths, center_paths, right_paths, left_
 filtered_angs = np.concatenate((udacity_angs, center_angs, right_angs, left_angs), axis=0)
 
 # Split the data into training and validation sets
-train_paths, val_paths, train_angles, val_angles = utils.split_data(
+train_paths, val_paths, train_angs, val_angs = utils.split_data(
     features=filtered_paths,
     labels=filtered_angs,
     test_size=0.2,
@@ -117,55 +117,51 @@ print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_pat
 
 # Model construction
 model = Sequential([
-    Lambda(lambda x: x/255. - 0.5, input_shape=(66, 200, 3)),
+    Lambda(lambda x: x/255. - 0.5, input_shape=(64, 64, 3)),
 
     Convolution2D(3, 1, 1, border_mode='valid', init='he_normal'),
+    BatchNormalization(mode=1),
 
-    # 66x200x3
-    Convolution2D(24, 5, 5, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    # 62x194x24
-    MaxPooling2D(pool_size=(2,2), border_mode='valid'),
-    ELU(),
+    Convolution2D(32, 5, 5, init='he_normal'),
+    MaxPooling2D(),
+    BatchNormalization(mode=1),
+    Activation('relu'),
 
-    # 31x98x24
-    Convolution2D(36, 5, 5, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    # 27x94x36
-    MaxPooling2D(pool_size=(2,2), border_mode='same'),
-    ELU(),
+    Convolution2D(64, 3, 3, init='he_normal'),
+    MaxPooling2D(),
+    BatchNormalization(mode=1),
+    Activation('relu'),
 
-    # 13x47x36
-    Convolution2D(48, 5, 5, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    # 9x43x48
-    MaxPooling2D(pool_size=(2,2), border_mode='same'),
-    ELU(),
+    Convolution2D(128, 3, 3, init='he_normal'),
+    MaxPooling2D(),
+    BatchNormalization(mode=1),
+    Activation('relu'),
 
-    # 5x22x48
-    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    ELU(),
+    Convolution2D(256, 3, 3, init='he_normal'),
+    MaxPooling2D(),
+    BatchNormalization(mode=1),
+    Activation('relu'),
 
-    # 3x20x64
-    Convolution2D(64, 3, 3, border_mode='valid', init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    ELU(),
-
-    # 1x18x64
     Flatten(),
 
-    Dense(100, init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    ELU(),
+    Dense(512),
+    Dropout(0.5),
+    BatchNormalization(mode=1),
+    Activation('relu'),
 
-    Dense(50, init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    ELU(),
+    Dense(256),
+    Dropout(0.5),
+    BatchNormalization(mode=1),
+    Activation('relu'),
 
-    Dense(10, init='he_normal', W_regularizer=l2(params.l2_reg)),
-    BatchNormalization(),
-    PReLU(),
+    Dense(128),
+    Dropout(0.5),
+    BatchNormalization(mode=1),
+    Activation('relu'),
+
+    Dense(16),
+    BatchNormalization(mode=1),
+    Activation('relu'),
 
     Dense(1, init='he_normal', W_regularizer=l2(params.l2_reg))
   ])
@@ -192,6 +188,11 @@ except FileNotFoundError:
     pass
 
 
+# Save model structure
+with open('model.json', 'w') as file:
+    file.write(model.to_json())
+
+
 # Model training
 callbacks = [
     EarlyStopping(monitor='val_loss', min_delta=params.min_delta, patience=params.patience,
@@ -201,29 +202,15 @@ callbacks = [
     TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True)
   ]
 model.fit_generator(
-    generator=utils.batch_generator(ims=train_paths, angs=train_angles, batch_size=params.batch_size,
+    generator=utils.batch_generator(ims=train_paths, angs=train_angs, batch_size=params.batch_size,
                                     augmentor=utils.augment_image, path=params.path, kwargs=params.kwargs),
-    samples_per_epoch=800*params.batch_size,
+    samples_per_epoch=400*params.batch_size,
     nb_epoch=params.max_epochs,
     # Halve the batch size, as `utils.val_augmentor` doubles the batch size by flipping the images and angles
-    validation_data=utils.batch_generator(ims=val_paths, angs=val_angles, batch_size=params.batch_size//2,
+    validation_data=utils.batch_generator(ims=val_paths, angs=val_angs, batch_size=params.batch_size//2,
                                           augmentor=utils.val_augmentor, validation=True, path=params.path),
     # Double the size of the validation set, as we are flipping the images to balance the right/left
     # distribution.
     nb_val_samples=2*val_paths.shape[0],
-    callbacks=callbacks
-  )
-
-# Save model structure
-with open('model.json', 'w') as file:
-    file.write(model.to_json())
-
-
-# Fine tune on straight runs
-model.fit_generator(
-    generator=utils.batch_generator(ims=center_paths, angs=center_angs, batch_size=params.batch_size//2,
-                                    augmentor=utils.val_augmentor, validation=True, path=params.path),
-    samples_per_epoch=2*center_paths.shape[0],
-    nb_epoch=10,
     callbacks=callbacks
   )
