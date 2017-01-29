@@ -177,8 +177,8 @@ def add_random_shadow(im):
     im = im.astype(np.float32)
 
     # Define line to create shadow on by creating an image mask
-    top_y, bot_y = np.random.randint(0, w, size=2)
-    left_x, right_x = np.random.randint(0, h, size=2)
+    top_y, bot_y = np.random.randint(2*w//10, 8*w//10, size=2)
+    left_x, right_x = np.random.randint(2*h//10, 8*h//10, size=2)
 
     XX, YY = np.mgrid[0:h, 0:w]
     shadow = np.zeros_like(im, dtype=np.float32)
@@ -191,10 +191,10 @@ def add_random_shadow(im):
 
     # Randomly choose a side of the line and darken it
     mask = shadow == np.random.randint(0, 2)
-    im[mask] *= np.random.uniform(0.4, 0.8)
+    im[mask] *= np.random.uniform(0.4, 0.7)
 
     # Randomly augment total brightness
-    im *= np.random.uniform(0.6, 1.0)
+    im *= np.random.uniform(0.4, 1.0)
     return im.astype(np.uint8)
 
 
