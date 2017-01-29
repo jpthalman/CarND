@@ -7,9 +7,9 @@ Dependencies:
     SciKit-Learn
 """
 
-
-from collections import namedtuple
 import numpy as np
+from collections import namedtuple
+from glob import glob
 import os
 
 from keras.models import Sequential
@@ -53,9 +53,9 @@ params = Parameters(
     # Model settings
     l2_reg=1e-5, keep_prob=0.5,
     # Optimizer settings
-    learning_rate=1e-3, epsilon=1e-8, decay=0.0,
+    learning_rate=1e-2, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=1e-4, patience=5, kwargs={'prob': 0.8}
+    min_delta=1e-4, patience=4, kwargs={'prob': 0.8}
   )
 
 
@@ -122,42 +122,44 @@ model = Sequential([
     Convolution2D(3, 1, 1, border_mode='valid', init='he_normal'),
     BatchNormalization(mode=1),
 
+    # 64x64x3
     Convolution2D(32, 5, 5, init='he_normal'),
     MaxPooling2D(),
     BatchNormalization(mode=1),
     Activation('relu'),
 
+    # 30x30x32
     Convolution2D(64, 3, 3, init='he_normal'),
     MaxPooling2D(),
     BatchNormalization(mode=1),
     Activation('relu'),
 
+    # 13x13x64
     Convolution2D(128, 3, 3, init='he_normal'),
     MaxPooling2D(),
     BatchNormalization(mode=1),
     Activation('relu'),
 
+    # 6x6x128
     Convolution2D(256, 3, 3, init='he_normal'),
     MaxPooling2D(),
     BatchNormalization(mode=1),
     Activation('relu'),
 
+    # 2x2x256
     Flatten(),
 
-    Dense(512),
-    Dropout(0.5),
-    BatchNormalization(mode=1),
-    Activation('relu'),
-
-    Dense(256),
-    Dropout(0.5),
-    BatchNormalization(mode=1),
-    Activation('relu'),
-
-    Dense(128),
-    Dropout(0.5),
-    BatchNormalization(mode=1),
-    Activation('relu'),
+    # Dense(512),
+    # BatchNormalization(mode=1),
+    # Activation('relu'),
+    #
+    # Dense(256),
+    # BatchNormalization(mode=1),
+    # Activation('relu'),
+    #
+    # Dense(128),
+    # BatchNormalization(mode=1),
+    # Activation('relu'),
 
     Dense(16),
     BatchNormalization(mode=1),
@@ -182,6 +184,8 @@ for file in os.listdir('./logs/'):
 
 # Remove previous model files
 try:
+    for file in glob('Models/*.h5'):
+        os.remove(file)
     os.remove('model.json')
     os.remove('model.h5')
 except FileNotFoundError:
@@ -194,13 +198,15 @@ with open('model.json', 'w') as file:
 
 
 # Model training
+filepath = 'Models/model_{epoch:03d}_{val_loss:0.5f}.h5'
 callbacks = [
     EarlyStopping(monitor='val_loss', min_delta=params.min_delta, patience=params.patience,
                   mode='min'),
-    ModelCheckpoint(filepath='model.h5', monitor='val_loss', save_best_only=True,
+    ModelCheckpoint(filepath=filepath, monitor='val_loss', save_best_only=True,
                     save_weights_only=True, mode='min'),
     TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True)
   ]
+
 model.fit_generator(
     generator=utils.batch_generator(ims=train_paths, angs=train_angs, batch_size=params.batch_size,
                                     augmentor=utils.augment_image, path=params.path, kwargs=params.kwargs),
