@@ -139,7 +139,7 @@ def process_image(im):
 
     im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
     im = im[20:140, :]
-    im = cv2.resize(im, (64, 64))
+    im = cv2.resize(im, (200, 66))
 
     if im.ndim == 2:
         im = np.expand_dims(im, -1)
@@ -260,9 +260,8 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     # Shifts/Affine transforms
     src = np.array([[0,0], [w,0], [w,h]]).astype(np.float32)
 
-    pixel_shift = 2
-    x_shift = np.random.randint(-pixel_shift, pixel_shift)
-    y_shift = np.random.randint(-pixel_shift, pixel_shift)
+    x_shift = np.random.randint(-15, 15)
+    y_shift = np.random.randint(-2, 2)
 
     dst = np.array([
         [0 + x_shift, 0 + y_shift],
@@ -276,13 +275,13 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     augmented = cv2.warpAffine(image, M_rot, (w,h))
     augmented = cv2.warpAffine(augmented, M_affine, (w,h))
 
+    # Shift steering angle in accordance with pixel shift
+    value += x_shift*8e-3
+
     # Ensure there is a color channel
     if augmented.ndim == 2:
         augmented = np.expand_dims(augmented, -1)
 
-    # Add random noise to steering angle
-    rand_ang = 0.001
-    value += np.random.uniform(-rand_ang, rand_ang)
     return augmented.astype(np.uint8), value
 
 

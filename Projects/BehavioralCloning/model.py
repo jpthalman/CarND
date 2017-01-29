@@ -8,9 +8,10 @@ Dependencies:
 """
 
 import numpy as np
+import os
 from collections import namedtuple
 from glob import glob
-import os
+from sklearn.utils import shuffle
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Flatten, Lambda
@@ -49,13 +50,13 @@ Parameters = namedtuple('Parameters', [
 
 params = Parameters(
     # General settings
-    batch_size=64, max_epochs=100, path='', angle_shift=0.1,
+    batch_size=128, max_epochs=100, path='', angle_shift=0.15,
     # Model settings
-    l2_reg=1e-5, keep_prob=0.5,
+    l2_reg=1e-4, keep_prob=0.2,
     # Optimizer settings
-    learning_rate=1e-2, epsilon=1e-8, decay=0.0,
+    learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=1e-4, patience=4, kwargs={'prob': 0.8}
+    min_delta=1e-4, patience=4, kwargs={'prob': 1.0}
   )
 
 
@@ -101,71 +102,48 @@ right_paths, right_angs = utils.concat_all_cameras(
   )
 
 # Aggregate all sets into one.
-filtered_paths = np.concatenate((udacity_paths, center_paths, right_paths, left_paths), axis=0)
-filtered_angs = np.concatenate((udacity_angs, center_angs, right_angs, left_angs), axis=0)
+filtered_paths = np.concatenate((center_paths, right_paths, left_paths), axis=0)
+filtered_angs = np.concatenate((center_angs, right_angs, left_angs), axis=0)
 
-# Split the data into training and validation sets
-train_paths, val_paths, train_angs, val_angs = utils.split_data(
-    features=filtered_paths,
-    labels=filtered_angs,
-    test_size=0.2,
-    shuffle_return=True
-  )
+train_paths, train_angs = shuffle(filtered_paths, filtered_angs)
 
-print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_paths.shape[0]))
+print('Training size: %d | Validation size: %d' % (train_paths.shape[0], udacity_paths.shape[0]))
 
 
 # Model construction
 model = Sequential([
-    Lambda(lambda x: x/255. - 0.5, input_shape=(64, 64, 3)),
+    Lambda(lambda x: x/255. - 0.5, input_shape=(66, 200, 3)),
 
-    Convolution2D(3, 1, 1, border_mode='valid', init='he_normal'),
-    BatchNormalization(mode=1),
+    Convolution2D(24, 5, 5, subsample=(2,2), W_regularizer=l2(params.l2_reg)),
+    ELU(),
+    Dropout(params.keep_prob),
 
-    # 64x64x3
-    Convolution2D(32, 5, 5, init='he_normal'),
-    MaxPooling2D(),
-    BatchNormalization(mode=1),
-    Activation('relu'),
+    Convolution2D(36, 5, 5, subsample=(2,2), W_regularizer=l2(params.l2_reg)),
+    ELU(),
+    Dropout(params.keep_prob),
 
-    # 30x30x32
-    Convolution2D(64, 3, 3, init='he_normal'),
-    MaxPooling2D(),
-    BatchNormalization(mode=1),
-    Activation('relu'),
+    Convolution2D(48, 5, 5, subsample=(2,2), W_regularizer=l2(params.l2_reg)),
+    ELU(),
+    Dropout(params.keep_prob),
 
-    # 13x13x64
-    Convolution2D(128, 3, 3, init='he_normal'),
-    MaxPooling2D(),
-    BatchNormalization(mode=1),
-    Activation('relu'),
+    Convolution2D(64, 3, 3, W_regularizer=l2(params.l2_reg)),
+    ELU(),
+    Dropout(params.keep_prob),
 
-    # 6x6x128
-    Convolution2D(256, 3, 3, init='he_normal'),
-    MaxPooling2D(),
-    BatchNormalization(mode=1),
-    Activation('relu'),
+    Convolution2D(64, 3, 3, W_regularizer=l2(params.l2_reg)),
+    ELU(),
+    Dropout(params.keep_prob),
 
-    # 2x2x256
     Flatten(),
 
-    # Dense(512),
-    # BatchNormalization(mode=1),
-    # Activation('relu'),
-    #
-    # Dense(256),
-    # BatchNormalization(mode=1),
-    # Activation('relu'),
-    #
-    # Dense(128),
-    # BatchNormalization(mode=1),
-    # Activation('relu'),
+    Dense(100, W_regularizer=l2(params.l2_reg)),
+    ELU(),
+    Dropout(params.keep_prob),
 
-    Dense(16),
-    BatchNormalization(mode=1),
-    Activation('relu'),
+    Dense(10, W_regularizer=l2(params.l2_reg)),
+    ELU(),
 
-    Dense(1, init='he_normal', W_regularizer=l2(params.l2_reg))
+    Dense(1, W_regularizer=l2(params.l2_reg))
   ])
 
 optimizer = adam(
@@ -210,13 +188,13 @@ callbacks = [
 model.fit_generator(
     generator=utils.batch_generator(ims=train_paths, angs=train_angs, batch_size=params.batch_size,
                                     augmentor=utils.augment_image, path=params.path, kwargs=params.kwargs),
-    samples_per_epoch=400*params.batch_size,
+    samples_per_epoch=25600,
     nb_epoch=params.max_epochs,
     # Halve the batch size, as `utils.val_augmentor` doubles the batch size by flipping the images and angles
-    validation_data=utils.batch_generator(ims=val_paths, angs=val_angs, batch_size=params.batch_size//2,
+    validation_data=utils.batch_generator(ims=udacity_paths, angs=udacity_angs, batch_size=params.batch_size//2,
                                           augmentor=utils.val_augmentor, validation=True, path=params.path),
     # Double the size of the validation set, as we are flipping the images to balance the right/left
     # distribution.
-    nb_val_samples=2*val_paths.shape[0],
+    nb_val_samples=2*udacity_angs.shape[0],
     callbacks=callbacks
   )
