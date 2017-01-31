@@ -149,7 +149,7 @@ def process_image(im):
     assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
 
     im = im[50:135, :]
-    im = cv2.resize(im, (200, 66))
+    im = cv2.resize(im, (64, 64))
 
     if im.ndim == 2:
         im = np.expand_dims(im, -1)

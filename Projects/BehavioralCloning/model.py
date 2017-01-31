@@ -56,7 +56,7 @@ params = Parameters(
     # Optimizer settings
     learning_rate=1e-3, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=1e-4, patience=9, kwargs={'prob': 0.9}
+    min_delta=1e-4, patience=4, kwargs={'prob': 0.9}
   )
 
 
@@ -67,7 +67,7 @@ udacity_paths, udacity_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'UdacityData/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
-    keep_percent=0.4
+    keep_percent=1.0
   )
 
 # Load the data from the middle runs
@@ -76,7 +76,7 @@ center_paths, center_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'Data/Center/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
-    keep_percent=0.4
+    keep_percent=0.8
   )
 
 # Load the data from the left runs
@@ -110,7 +110,7 @@ filtered_angs = np.concatenate((udacity_angs, center_angs, right_angs, left_angs
 train_paths, val_paths, train_angs, val_angs = utils.split_data(
     features=udacity_paths,
     labels=udacity_angs,
-    test_size=0.05
+    test_size=0.1
   )
 
 print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_paths.shape[0]))
@@ -118,33 +118,34 @@ print('Training size: %d | Validation size: %d' % (train_paths.shape[0], val_pat
 
 # Model construction
 model = Sequential([
-    Lambda(lambda x: x/255. - 0.5, input_shape=(66, 200, 3)),
+    Lambda(lambda x: x/255. - 0.5, input_shape=(64, 64, 3)),
 
     Convolution2D(3, 1, 1, border_mode='valid'),
 
-    # 66x200x3
-    Convolution2D(24, 5, 5, border_mode='valid', activation='elu', W_regularizer=l2(params.l2_reg), subsample=(2, 2)),
-    Dropout(params.keep_prob),
-    # 31x98x24
-    Convolution2D(36, 5, 5, border_mode='valid', activation='elu', W_regularizer=l2(params.l2_reg), subsample=(2, 2)),
-    Dropout(params.keep_prob),
-    # 14x47x36
-    Convolution2D(48, 5, 5, border_mode='valid', activation='elu', W_regularizer=l2(params.l2_reg), subsample=(2, 2)),
-    Dropout(params.keep_prob),
-    # 5x22x48
-    Convolution2D(64, 3, 3, border_mode='valid', activation='elu', W_regularizer=l2(params.l2_reg)),
-    Dropout(params.keep_prob),
-    # 3x20x64
-    Convolution2D(64, 3, 3, border_mode='valid', activation='elu', W_regularizer=l2(params.l2_reg)),
-    Dropout(params.keep_prob),
+    # 64x64x3
+    Convolution2D(32, 3, 3, activation='elu', W_regularizer=l2(params.l2_reg)),
+    Convolution2D(32, 3, 3, activation='elu', W_regularizer=l2(params.l2_reg)),
+    MaxPooling2D(),
+    # 30x30x32
+    Convolution2D(64, 3, 3, activation='elu', W_regularizer=l2(params.l2_reg)),
+    MaxPooling2D(),
+    # 14x14x64
+    Convolution2D(128, 3, 3, activation='elu', W_regularizer=l2(params.l2_reg)),
+    MaxPooling2D(),
+    # 6x6x128
+    Convolution2D(256, 3, 3, activation='elu', W_regularizer=l2(params.l2_reg)),
+    MaxPooling2D(),
 
-    # 1x18x64
+    # 2x2x256
     Flatten(),
 
-    Dense(128, activation='elu', W_regularizer=l2(params.l2_reg)),
+    Dense(512, activation='elu', W_regularizer=l2(params.l2_reg)),
     Dropout(params.keep_prob),
 
-    Dense(64, activation='elu', W_regularizer=l2(params.l2_reg)),
+    Dense(256, activation='elu', W_regularizer=l2(params.l2_reg)),
+    Dropout(params.keep_prob),
+
+    Dense(128, activation='elu', W_regularizer=l2(params.l2_reg)),
     Dropout(params.keep_prob),
 
     Dense(16, activation='elu', W_regularizer=l2(params.l2_reg)),
