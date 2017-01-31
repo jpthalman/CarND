@@ -31,43 +31,6 @@ def load_data(path, file):
     return data
 
 
-def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent):
-    """
-    Concatenates left, right, and center paths and angles, shifting the left/right angles by `angle_shift`.
-
-    An example of the usage of the condition lambda is if you want to remove 90% of the samples in a dataset
-    where the steering angles are close to zero, the code would look like this:
-
-        images, angles = concat_all_cameras(
-            data=data,
-            angle_shift=0.1,
-            condition_lambda=lambda x: abs(x) < 1e-5,
-            keep_percent=0.1
-          )
-
-    Note that the lambda should return True for the values you would like to filter.
-
-    :param data: Dictionary containing ['angles', 'center', 'left', 'right']
-    :param angle_shift: The amount to shift the left/right camera images by.
-    :param condition_lambda: Condition by which to keep data.
-    :param keep_percent: Percent of data to keep where `condition_lambda` is true.
-    :return: Tuple containing (paths, angles)
-    """
-    # Modify the steering angles of the left and right cameras's images to simulate
-    # steering back towards the middle. Aggregate all sets into one.
-    ims = np.concatenate((data['center'], data['right'], data['left']), axis=0)
-    angs = np.concatenate((data['angles'], data['angles'] - angle_shift, data['angles'] + angle_shift), axis=0)
-
-    # Remove n% of the frames where the steering angle is close to zero
-    filtered_paths, filtered_angs = keep_n_percent_of_data_where(
-        data=ims,
-        values=angs,
-        condition_lambda=condition_lambda,
-        percent=keep_percent
-      )
-    return filtered_paths, filtered_angs
-
-
 def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
     """
     Keeps n-percent of a dataset where a condition over the values is true.
@@ -106,8 +69,56 @@ def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
 
     filtered_data = np.concatenate((data_false, clipped_data_true), axis=0)
     filtered_values = np.concatenate((val_false, clipped_val_true), axis=0)
-
     return filtered_data, filtered_values
+
+
+def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent, drop_camera=''):
+    """
+    Concatenates left, right, and center paths and angles, shifting the left/right angles by `angle_shift`.
+
+    An example of the usage of the condition lambda is if you want to remove 90% of the samples in a dataset
+    where the steering angles are close to zero, the code would look like this:
+
+        images, angles = concat_all_cameras(
+            data=data,
+            angle_shift=0.1,
+            condition_lambda=lambda x: abs(x) < 1e-5,
+            keep_percent=0.1
+          )
+
+    Note that the lambda should return True for the values you would like to filter.
+
+    :param data: Dictionary containing ['angles', 'center', 'left', 'right']
+    :param angle_shift: The amount to shift the left/right camera images by.
+    :param condition_lambda: Condition by which to keep data.
+    :param keep_percent: Percent of data to keep where `condition_lambda` is true.
+    :return: Tuple containing (paths, angles)
+    """
+    # Remove n% of the frames where the steering angle is close to zero
+    ims, angs = keep_n_percent_of_data_where(
+        data=np.array([data['center'], data['left'], data['right']]).T,
+        values=data['angles'],
+        condition_lambda=condition_lambda,
+        percent=keep_percent
+      )
+
+    center = np.array([im for im in ims[..., 0]])
+    left = np.array([im for im in ims[..., 1]])
+    right = np.array([im for im in ims[..., 2]])
+
+    if drop_camera == 'left':
+        filtered_paths = np.concatenate((center, right), axis=0)
+        filtered_angs = np.concatenate((angs, angs - angle_shift), axis=0)
+    elif drop_camera == 'right':
+        filtered_paths = np.concatenate((center, left), axis=0)
+        filtered_angs = np.concatenate((angs, angs + angle_shift), axis=0)
+    else:
+        filtered_paths = np.concatenate((center, right, left), axis=0)
+        filtered_angs = np.concatenate((angs, angs - angle_shift, angs + angle_shift), axis=0)
+
+    # Modify the steering angles of the left and right cameras's images to simulate
+    # steering back towards the middle. Aggregate all sets into one.
+    return filtered_paths, filtered_angs
 
 
 def split_data(features, labels, test_size=0.2, shuffle_return=True):
@@ -137,8 +148,7 @@ def process_image(im):
     """
     assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
 
-    im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
-    im = im[20:140, :]
+    im = im[50:135, :]
     im = cv2.resize(im, (200, 66))
 
     if im.ndim == 2:
@@ -173,7 +183,7 @@ def add_random_shadow(im):
     """
     assert im.ndim == 2, 'Image must have dimensions (h, w)'
 
-    h, w = im.shape[:2]
+    h, w = im.shape
     im = im.astype(np.float32)
 
     # Define line to create shadow on by creating an image mask
@@ -191,10 +201,10 @@ def add_random_shadow(im):
 
     # Randomly choose a side of the line and darken it
     mask = shadow == np.random.randint(0, 2)
-    im[mask] *= np.random.uniform(0.4, 0.7)
+    im[mask] *= np.random.uniform(0.35, 0.95)
 
     # Randomly augment total brightness
-    im *= np.random.uniform(0.4, 1.0)
+    im *= np.random.uniform(0.4, 1.1)
     return im.astype(np.uint8)
 
 
@@ -221,8 +231,6 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     """
     assert image.ndim == 3, 'Image must have dimensions (h, w, ch)'
 
-    image = im_normalizer(image)
-
     h, w, color_channels = image.shape
 
     # Flip the image and angle half the time. Effectively doubles the size of
@@ -234,14 +242,8 @@ def augment_image(image, value, prob, im_normalizer=process_image):
 
     # Return un-augmented image and value with probability (1-prob)
     if np.random.uniform(0.0, 1.0) > prob:
+        image = im_normalizer(image)
         return image, value
-
-    # Random occlusion with dark squares
-    # sq_w, sq_h, sq_count = int(0.15*h), int(0.15*h), 30
-    # for i in range(sq_count):
-    #     pt1 = (np.random.randint(0, w), np.random.randint(0, h))
-    #     pt2 = (pt1[0] + sq_w, pt1[1] + sq_h)
-    #     cv2.rectangle(image, pt1, pt2, (-0.5, -0.5, -0.5), -1)
 
     # Random shadow simulation
     if color_channels == 3:
@@ -260,8 +262,8 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     # Shifts/Affine transforms
     src = np.array([[0,0], [w,0], [w,h]]).astype(np.float32)
 
-    x_shift = np.random.randint(-15, 15)
-    y_shift = np.random.randint(-2, 2)
+    x_shift = np.random.randint(-25, 26)
+    y_shift = np.random.randint(-7, 8)
 
     dst = np.array([
         [0 + x_shift, 0 + y_shift],
@@ -272,17 +274,19 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     M_affine = cv2.getAffineTransform(src, dst)
 
     # Apply augmentations to the image
+    # augmented = cv2.warpAffine(image, M_affine, (w,h))
     augmented = cv2.warpAffine(image, M_rot, (w,h))
-    augmented = cv2.warpAffine(augmented, M_affine, (w,h))
 
     # Shift steering angle in accordance with pixel shift
-    value += x_shift*8e-3
+    # value += x_shift*4e-3
 
     # Ensure there is a color channel
     if augmented.ndim == 2:
         augmented = np.expand_dims(augmented, -1)
 
-    return augmented.astype(np.uint8), value
+    augmented = augmented.astype(np.uint8)
+    augmented = im_normalizer(augmented)
+    return augmented, value
 
 
 def val_augmentor(ims, vals):
@@ -343,7 +347,7 @@ def batch_generator(ims, angs, batch_size, augmentor, path, kwargs={}, validatio
                 batch_y = np.concatenate((batch_y, angs[rand_idx, ...]), axis=0)
 
             # Load the images from their paths
-            batch_x = np.array([cv2.imread(path + im) for im in batch_x])
+            batch_x = np.array([cv2.cvtColor(cv2.imread(path + im), cv2.COLOR_BGR2HSV) for im in batch_x])
             # Augment the images with the given function
             batch_x, batch_y = augmentor(batch_x, batch_y, **kwargs)
             yield batch_x, batch_y
