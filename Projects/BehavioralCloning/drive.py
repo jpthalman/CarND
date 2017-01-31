@@ -2,6 +2,7 @@ import argparse
 import base64
 
 import numpy as np
+import cv2
 import socketio
 import eventlet.wsgi
 from PIL import Image
@@ -37,6 +38,7 @@ def telemetry(sid, data):
 
     # Pre-processing
     processed = process_image(image_array)
+    processed = cv2.cvtColor(processed, cv2.COLOR_BGR2HSV)
     processed = np.expand_dims(processed, 0)
 
     steering_angle = float(model.predict(processed, batch_size=1))
