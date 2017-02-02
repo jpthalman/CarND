@@ -262,7 +262,7 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     # Shifts/Affine transforms
     src = np.array([[0,0], [w,0], [w,h]]).astype(np.float32)
 
-    x_shift = np.random.randint(-25, 26)
+    x_shift = np.random.randint(-40, 41)
     y_shift = np.random.randint(-7, 8)
 
     dst = np.array([
@@ -274,11 +274,11 @@ def augment_image(image, value, prob, im_normalizer=process_image):
     M_affine = cv2.getAffineTransform(src, dst)
 
     # Apply augmentations to the image
-    # augmented = cv2.warpAffine(image, M_affine, (w,h))
-    augmented = cv2.warpAffine(image, M_rot, (w,h))
+    augmented = cv2.warpAffine(image, M_affine, (w,h))
+    augmented = cv2.warpAffine(augmented, M_rot, (w,h))
 
     # Shift steering angle in accordance with pixel shift
-    # value += x_shift*4e-3
+    value += x_shift*4e-3
 
     # Ensure there is a color channel
     if augmented.ndim == 2:
@@ -333,6 +333,9 @@ def batch_generator(ims, angs, batch_size, augmentor, path, kwargs={}, validatio
     while True:
         ims, angs = shuffle(ims, angs)
         batch_starts = np.arange(0, n_obs, batch_size)
+
+        # if 'prob' in kwargs.keys():
+        #     kwargs['prob'] *= 0.98
 
         for batch in np.random.permutation(batch_starts):
             next_idx = batch + batch_size
