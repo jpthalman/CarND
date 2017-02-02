@@ -37,17 +37,17 @@ To address the challenges outlined above, we will need to to get clever with the
 
 The simulator we use has three camera viewpoints from which it records images. There is a center camera, a left camera, and a right camera with about **1.5m** between the outside cameras and the center. With these outside cameras, we can use some simple geometry to calculate what the steering angle would need to be to guide the car to the center of the road in **10m** *if this camera was on the center of the car*.
 
-~~~ python
-
-TODO
-
-~~~
+<div align="center">
+	<img src="/Images/steering-adjustment.jpg">
+</div>
 
 Solving the above for <img src="http://mathurl.com/hcg2kkx.png"> in terms of <img src="http://mathurl.com/26sgh7q.png"> results in this equation to relate the center steering angle with the left or right steering angles:
 
-<img src="http://mathurl.com/hp5krpw.png">
+<div align="center">
+	<img src="http://mathurl.com/gvhxf7y.png">
+</div>
 
-Note that the plus-minus is there because we have two cameras. We will add for the right camera and subtract for the left camera.
+Note that the plus-minus is there because we have two cameras. We will add for the right camera and subtract for the left camera. Also, the simulator gives us the steering angles in degrees, so we will need to convert them to radians.
 
 ### Flipping
 
