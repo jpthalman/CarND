@@ -43,9 +43,9 @@ TODO
 
 ~~~
 
-Solving the above for <img src="http://mathurl.com/hcg2kkx"> in terms of <img src="http://mathurl.com/26sgh7q"> results in this equation to relate the center steering angle with the left or right steering angles:
+Solving the above for <img src="http://mathurl.com/hcg2kkx.png"> in terms of <img src="http://mathurl.com/26sgh7q.png"> results in this equation to relate the center steering angle with the left or right steering angles:
 
-<img src="http://mathurl.com/hp5krpw">
+<img src="http://mathurl.com/hp5krpw.png">
 
 Note that the plus-minus is there because we have two cameras. We will add for the right camera and subtract for the left camera.
 
