@@ -135,41 +135,59 @@ I chose to convert the images to [HSV](https://en.wikipedia.org/wiki/HSL_and_HSV
 
 ### The Generator
 
+~~~ python
 
+# TODO: Add image of test track
+
+~~~
 
 ## **Model Construction and Training**
-
-
-
-### Architecture
 
 <div align="center">
 	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/BehavioralCloning/Images/model.JPG">
 </div>
 
-The model architecture I chose utilized 6 convolutional layers and 5 fully connected layers wil ELU activations after each. The specifics of the architecture are available in the image above. Before being fed into the convolutional layers, the images were resized to **64x64x3** and their pixel intensities were normalized to **[-0.5, 0.5]**. Dropout layers with a keep probability of **0.5** were applied to the layers with more than 50k weights to help reduce overfitting.
+The model architecture I chose utilized 6 convolutional layers and 5 fully connected layers wil ELU activations after each. To construct this architecture, I kept stacking convolutional and pooling layers until the number of dimensions outputted from the feature extraction was small enough, in this case 1024. I then kept adding fully connected layers to this output until the model began to overfit to the training data, and added regularization (dropout and L2 regularization) to dampen this overfitting. The specifics of the architecture are available in the image above. 
+
+Before being fed into the convolutional layers, the images were resized to **64x64x3** and their pixel intensities were normalized to **[-0.5, 0.5]**. Dropout layers with a keep probability of **50%** were applied to the layers with more than 50k weights to help reduce overfitting.
 
 ### Hyperparameters
 
+~~~ python
 
+# TODO: Add image of test track
+
+~~~
 
 ### Stopping Conditions
 
-Before training the model, 20% of the training set is reserved as a validation set. The models performance on this set was evaluated after each epoch and *if and only if* performance improved, the weights were saved. If the performance on the validation set did not improve for five epochs, training was terminated.
+Before training the model, 20% of the training set was reserved as a validation set. The models performance on this set was evaluated after each epoch and *if and only if* performance improved, the weights were saved. If the performance on the validation set did not improve for five epochs, training was terminated.
 
 ## **Results**
 
+~~~ python
 
+# TODO: Add image of test track
+
+~~~
 
 ### Performance on the Training Track
 
+~~~ python
 
+# TODO: Add image of test track
+
+~~~
 
 ### Performance on the Testing Track
 
+~~~ python
 
+# TODO: Add image of test track
+
+~~~
 
 ## **Reflections**
 
-
+This was by far the most fun I've had doing a machine learning project. This project feels like the first major step toward the state of the art in the field, and the fact that I was able to teach a car to drive itself around a track astounds me. I will definately be coming back to this project in the future to improve my results, and I would love to attempt to implement an attention transfer model or a recurrent net to this simulation and see the results!
 
