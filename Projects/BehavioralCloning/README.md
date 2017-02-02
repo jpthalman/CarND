@@ -1,5 +1,4 @@
 # **Deep Neural Networks for Cloning Human Driving Behavior**
----
 
 ~~~ python
 
@@ -20,7 +19,6 @@ There are several major differences between the training track and the testing t
 To overcome these deficiencies in the training data, we will need to devise a method to augment our images to more closely represent the conditions in which the model will be evaluated.
 
 ## **How to Download the Simulator**
----
 
 The simulator used for this project is available for the major operating systems:
 
@@ -32,7 +30,6 @@ The simulator used for this project is available for the major operating systems
 Once downloaded, extract the files to your desired destination, run the executable that is outside of the main folder, and choose your desired resolution.
 
 ## **Data Augmentation**
----
 
 
 
@@ -53,7 +50,6 @@ Once downloaded, extract the files to your desired destination, run the executab
 
 
 ## **Preprocessing and Image Generation**
----
 
 
 
@@ -70,7 +66,6 @@ Once downloaded, extract the files to your desired destination, run the executab
 
 
 ## **Model Construction and Training**
----
 
 
 
@@ -87,7 +82,8 @@ Once downloaded, extract the files to your desired destination, run the executab
 
 
 ## **Results**
----
+
+
 
 ### Performance on the Training Track
 
@@ -98,6 +94,6 @@ Once downloaded, extract the files to your desired destination, run the executab
 
 
 ## **Reflections**
----
+
 
 
