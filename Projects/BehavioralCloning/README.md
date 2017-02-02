@@ -27,7 +27,7 @@ The simulator used for this project is available for the major operating systems
 - [Windows 32-Bit](https://d17h27t6h515a5.cloudfront.net/topher/2016/November/5831f4b6_simulator-windows-32/simulator-windows-32.zip)
 - [Windows 64-Bit](https://d17h27t6h515a5.cloudfront.net/topher/2016/November/5831f3a4_simulator-windows-64/simulator-windows-64.zip)
 
-Once downloaded, extract the files to your desired destination, run the executable that is outside of the main folder, and choose your desired resolution.
+Once downloaded, extract the files to your desired destination, run the executable that is outside of the main folder, and choose your desired resolution. There is also a small dataset provided by Udacity of example training data available [here](https://d17h27t6h515a5.cloudfront.net/topher/2016/December/584f6edd_data/data.zip).
 
 ## **Data Augmentation**
 
