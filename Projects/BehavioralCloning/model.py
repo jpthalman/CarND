@@ -52,11 +52,11 @@ params = Parameters(
     # General settings
     batch_size=256, max_epochs=100, path='', angle_shift=0.15,
     # Model settings
-    l2_reg=0.0005, keep_prob=0.5,
+    l2_reg=0.0001, keep_prob=0.5,
     # Optimizer settings
-    learning_rate=1e-3, epsilon=1e-8, decay=0.0,
+    learning_rate=7e-4, epsilon=1e-8, decay=0.0,
     # Training settings
-    min_delta=1e-4, patience=4, kwargs={'prob': 0.9}
+    min_delta=1e-4, patience=4, kwargs={'prob': 1.0}
   )
 
 
@@ -67,7 +67,7 @@ udacity_paths, udacity_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'UdacityData/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
-    keep_percent=1.0
+    keep_percent=0.2
   )
 
 # Load the data from the middle runs
@@ -76,7 +76,7 @@ center_paths, center_angs = utils.concat_all_cameras(
     data=utils.load_data(path + 'Data/Center/', 'driving_log.csv'),
     angle_shift=params.angle_shift,
     condition_lambda=lambda x: abs(x) < 1e-5,
-    keep_percent=0.8
+    keep_percent=0.2
   )
 
 # Load the data from the left runs
@@ -139,14 +139,16 @@ model = Sequential([
     # 2x2x256
     Flatten(),
 
-    Dense(512, activation='elu', W_regularizer=l2(params.l2_reg)),
+    Dense(512, activation='elu'),
     Dropout(params.keep_prob),
 
-    Dense(256, activation='elu', W_regularizer=l2(params.l2_reg)),
+    Dense(256, activation='elu'),
     Dropout(params.keep_prob),
 
-    Dense(128, activation='elu', W_regularizer=l2(params.l2_reg)),
+    Dense(128, activation='elu'),
     Dropout(params.keep_prob),
+
+    Dense(64, activation='elu', W_regularizer=l2(params.l2_reg)),
 
     Dense(16, activation='elu', W_regularizer=l2(params.l2_reg)),
 
