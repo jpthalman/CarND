@@ -29,6 +29,10 @@ The simulator used for this project is available for the major operating systems
 
 Once downloaded, extract the files to your desired destination, run the executable that is outside of the main folder, and choose your desired resolution. There is also a small dataset provided by Udacity of example training data available [here](https://d17h27t6h515a5.cloudfront.net/topher/2016/December/584f6edd_data/data.zip).
 
+## **Data Collection Strategies**
+
+To get a good baseline of the expected behavior on the track, I recorded five laps where I did my best to stay in the exact center of the lane. To simulate recovery for poor positions, I recorded three laps each of swerving to the left and right and then recovering to the center of the lane. I used all three of these datasets to train the model, in addition to the default data provided by Udacity. All in all, this was ~50k images total, which will be reduced in the pre-processing step.
+
 ## **Data Augmentation**
 
 To address the challenges outlined above, we will need to to get clever with the way that we process our images. We are presented with an unbalanced, non-representational dataset to train on, and our end goal is to have the model generalize to differing conditions. There are several tricks that we will use to help make the training data more representational of the conditions the model will be tested under.
@@ -48,6 +52,8 @@ Solving the above for <img src="http://mathurl.com/hcg2kkx.png"> in terms of <im
 </div>
 
 Note that the plus-minus is there because we have two cameras. We will add for the right camera and subtract for the left camera. Also, the simulator gives us the steering angles in degrees, so we will need to convert them to radians.
+
+With this method, we can essentially treat the left and right camera's images *as if they were in the center* and feed them into the same model as additional training data. This immediately triples the size of our training set and gives us viewpoints of the track that would have been difficult to achieve without the different perspectives.
 
 ### Flipping
 
@@ -71,7 +77,7 @@ To further balance the data, we can introduce random horizontal shifts to the im
 
 ~~~
 
-These random shifts do result in some information loss, resulting in the black regions above. However, the hope is that the model will be invariant to these dark regions and only focus on the regions where road is. To account for these shifts, we add or subtract **0.004** to the steering angle per pixel of shift. The shifts are bound between [-40, 40] pixels, so if we shift 40 pixels to the right, we would add **0.16** to the steering angle.
+These random shifts result in some information loss, represented as the black regions above. However, the hope is that the model will be invariant to these dark regions and only focus on the regions where road is located. To account for these shifts, we add or subtract **0.004** to the steering angle per pixel of horizontal shift. The shifts are bound between [-40, 40] pixels, so if we shift 40 pixels to the right, we would add **0.16** to the steering angle provided by the simulator, or **4°** to the actual angle.
 
 ### Brightness
 
@@ -83,7 +89,7 @@ To simulate different lighting conditions, we can randomly augment the brightnes
 
 ~~~
 
-This will (hopefully) force the model to become brightness invariant, and help it generalize to new conditions.
+This will (hopefully) force the model to become invariant to lighting conditions and help it generalize to new environments.
 
 ### Shadows
 
@@ -109,19 +115,25 @@ In the real world, the mount that the camera is attached to is not perfectly sol
 
 This augmentation method can easily be skipped for the purpose of this simulation, as our camera does not jostle. I chose to include it simply as an excercise for myself.
 
-## **Preprocessing and Image Generation**
+## **Pre-Processing and Image Generation**
 
-
+In order to remove the unnecessary parts of the images and convert them to a useful color space, we will need to pre-process the images before feeding them into the model. In addition, we will make use of a Python generator to create an infinite stream of images augmented with the above methods.
 
 ### Filtering by Angle Distribution
 
+As we mentioned above, there are far more examples of straight aways than turns in the track. We already addressed the left/right distribution issue, so we will focus on reducing the number of examples of close to zero steering angle in our set. 
 
+Using the function `keep_n_percent_of_data_where` in the `utils` module, we filter our data according to a lambda. Using this function, we remove 80% of the examples with near to zero steering angles from our dataset where we stayed near the center of the lane. We also remove 100% of data in the right recovery set with steering angles greater than zero, and 100% of the left recovery set with steering angles less than zero.
 
 ### Cropping
 
-
+To remove the sky and the hood of the car from the images, I cropped out the top 50 pixels and the bottom 25 pixels from the images. 
 
 ### Color Spaces
+
+I chose to convert the images to [HSV](https://en.wikipedia.org/wiki/HSL_and_HSV) color space, as scaling brightness is this space is much easier than in RGB. 
+
+### The Generator
 
 
 
@@ -131,7 +143,11 @@ This augmentation method can easily be skipped for the purpose of this simulatio
 
 ### Architecture
 
+<div align="center">
+	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/BehavioralCloning/Images/model.JPG">
+</div>
 
+The model architecture I chose utilized 6 convolutional layers and 5 fully connected layers wil ELU activations after each. The specifics of the architecture are available in the image above. Before being fed into the convolutional layers, the images were resized to **64x64x3** and their pixel intensities were normalized to **[-0.5, 0.5]**. Dropout layers with a keep probability of **0.5** were applied to the layers with more than 50k weights to help reduce overfitting.
 
 ### Hyperparameters
 
@@ -139,7 +155,7 @@ This augmentation method can easily be skipped for the purpose of this simulatio
 
 ### Stopping Conditions
 
-
+Before training the model, 20% of the training set is reserved as a validation set. The models performance on this set was evaluated after each epoch and *if and only if* performance improved, the weights were saved. If the performance on the validation set did not improve for five epochs, training was terminated.
 
 ## **Results**
 
