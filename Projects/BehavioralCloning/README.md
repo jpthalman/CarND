@@ -31,23 +31,83 @@ Once downloaded, extract the files to your desired destination, run the executab
 
 ## **Data Augmentation**
 
+To address the challenges outlined above, we will need to to get clever with the way that we process our images. We are presented with an unbalanced, non-representational dataset to train on, and our end goal is to have the model generalize to differing conditions. There are several tricks that we will use to help make the training data more representational of the conditions the model will be tested under.
 
+### Left and Right Cameras
+
+The simulator we use has three camera viewpoints from which it records images. There is a center camera, a left camera, and a right camera with about **1.5m** between the outside cameras and the center. With these outside cameras, we can use some simple geometry to calculate what the steering angle would need to be to guide the car to the center of the road in **10m** *if this camera was on the center of the car*.
+
+~~~ python
+
+TODO
+
+~~~
+
+Solving the above for $\theta'$ in terms of $\theta$ results in this equation to relate the center steering angle with the left or right steering angles:
+
+$\theta' = \arctan(\frac{1 \pm 0.15*\tan(\frac{\pi}{2}-\theta)}{\tan(\frac{\pi}{2}-\theta)})$
+
+Note that the plus-minus is there because we have two cameras. We will add for the right camera and subtract for the left camera.
 
 ### Flipping
 
+An easy solution to the dominance of left turns in the training track is to flip the training images along the Y-axis randomly and invert the steering angle. 
 
+~~~ python
+
+# TODO
+
+~~~
+
+If we randomly flip images with a probability of 50%, this will have the effect of balancing the left/right proportions in the dataset over time. 
+
+### Shifting
+
+To further balance the data, we can introduce random horizontal shifts to the image, and correct the steering angle accordingly. 
+
+~~~ python 
+
+# TODO
+
+~~~
+
+These random shifts do result in some information loss, resulting in the black regions above. However, the hope is that the model will be invariant to these dark regions and only focus on the regions where road is. To account for these shifts, we add or subtract **0.004** to the steering angle per pixel of shift. The shifts are bound between [-40, 40] pixels, so if we shift 40 pixels to the right, we would add **0.16** to the steering angle.
 
 ### Brightness
 
+To simulate different lighting conditions, we can randomly augment the brightness of each image.
 
+~~~ python 
+
+# TODO
+
+~~~
+
+This will (hopefully) force the model to become brightness invariant, and help it generalize to new conditions.
 
 ### Shadows
 
+Extending the idea of brightness invariance, there are many cases in the real world where there are multiple levels of brightness within the same image. For example, if a building casts a shadow across the road, we do not want the model to interpret this brightness shift as a lane line or an obstacle. To simulate these conditions, we can generate a random line across our image and randomly darken all pixels to one side of this line.
 
+~~~ python 
+
+# TODO
+
+~~~
+
+Although this method does not represent all possible shapes of shadows, it should allow the model to become reasonably invariant to the type of shadows that we will encounter in the testing track.
 
 ### Jittering
 
+In the real world, the mount that the camera is attached to is not perfectly solid. Because of this, whenever the car hits a bump, the image the camera generates will be shifted and rotated very slightly due to the jostling. To address this, we introduce small random shifts and rotations into the image.
 
+~~~ python 
+
+# TODO
+
+~~~
+
+This augmentation method can easily be skipped for the purpose of this simulation, as our camera does not jostle. I chose to include it simply as an excercise for myself.
 
 ## **Preprocessing and Image Generation**
 
