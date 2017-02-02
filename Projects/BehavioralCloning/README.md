@@ -43,9 +43,9 @@ TODO
 
 ~~~
 
-Solving the above for $\theta'$ in terms of $\theta$ results in this equation to relate the center steering angle with the left or right steering angles:
+Solving the above for <img src="http://mathurl.com/hcg2kkx"> in terms of <img src="http://mathurl.com/26sgh7q"> results in this equation to relate the center steering angle with the left or right steering angles:
 
-$\theta' = \arctan(\frac{1 \pm 0.15*\tan(\frac{\pi}{2}-\theta)}{\tan(\frac{\pi}{2}-\theta)})$
+<img src="http://mathurl.com/hp5krpw">
 
 Note that the plus-minus is there because we have two cameras. We will add for the right camera and subtract for the left camera.
 
