@@ -1,10 +1,8 @@
 # **Deep Neural Networks for Cloning Human Driving Behavior**
 
-~~~ python
-
-# TODO: Add image of test track
-
-~~~
+<div align="center">
+	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/BehavioralCloning/Images/test-track.png">
+</div>
 
 In this project, we will be teaching a Deep Convolutional Neural Network to drive around a track in a simulator, and hopefully have it generalize well to a testing track. The simulator we will be using, provided by Udacity's Self-Driving Car Engineer Nanodegree, has two modes. In the first mode, we have full control of the car, using either WASD or a gamepad to control the car. This 'training' mode has the option to record our driving behavior as a set of images and their corresponding steering angle, and save this recorded data to a directory on our computer. The second mode lets us to connect our trained model to the simulator using a Python script and live stream steering commands to the car, allowing us to test the performance of our model in real time.
 
@@ -39,6 +37,12 @@ To address the challenges outlined above, we will need to to get clever with the
 
 ### Left and Right Cameras
 
+~~~ python 
+
+Look at this formula again.
+
+~~~
+
 The simulator we use has three camera viewpoints from which it records images. There is a center camera, a left camera, and a right camera with about **1.5m** between the outside cameras and the center. With these outside cameras, we can use some simple geometry to calculate what the steering angle would need to be to guide the car to the center of the road in **10m** *if this camera was on the center of the car*.
 
 <div align="center">
@@ -59,11 +63,9 @@ With this method, we can essentially treat the left and right camera's images *a
 
 An easy solution to the dominance of left turns in the training track is to flip the training images along the Y-axis randomly and invert the steering angle. 
 
-~~~ python
-
-# TODO
-
-~~~
+<div align="center">
+	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/BehavioralCloning/Images/flipped.png">
+</div>
 
 If we randomly flip images with a probability of 50%, this will have the effect of balancing the left/right proportions in the dataset over time. 
 
@@ -71,11 +73,9 @@ If we randomly flip images with a probability of 50%, this will have the effect 
 
 To further balance the data, we can introduce random horizontal shifts to the image, and correct the steering angle accordingly. 
 
-~~~ python 
-
-# TODO
-
-~~~
+<div align="center">
+	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/BehavioralCloning/Images/shifted.png">
+</div>
 
 These random shifts result in some information loss, represented as the black regions above. However, the hope is that the model will be invariant to these dark regions and only focus on the regions where road is located. To account for these shifts, we add or subtract **0.004** to the steering angle per pixel of horizontal shift. The shifts are bound between [-40, 40] pixels, so if we shift 40 pixels to the right, we would add **0.16** to the steering angle provided by the simulator, or **4°** to the actual angle.
 
@@ -83,11 +83,9 @@ These random shifts result in some information loss, represented as the black re
 
 To simulate different lighting conditions, we can randomly augment the brightness of each image.
 
-~~~ python 
-
-# TODO
-
-~~~
+<div align="center">
+	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/BehavioralCloning/Images/dark.png">
+</div>
 
 This will (hopefully) force the model to become invariant to lighting conditions and help it generalize to new environments.
 
@@ -95,23 +93,15 @@ This will (hopefully) force the model to become invariant to lighting conditions
 
 Extending the idea of brightness invariance, there are many cases in the real world where there are multiple levels of brightness within the same image. For example, if a building casts a shadow across the road, we do not want the model to interpret this brightness shift as a lane line or an obstacle. To simulate these conditions, we can generate a random line across our image and randomly darken all pixels to one side of this line.
 
-~~~ python 
-
-# TODO
-
-~~~
+<div align="center">
+	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/BehavioralCloning/Images/shadow.png">
+</div>
 
 Although this method does not represent all possible shapes of shadows, it should allow the model to become reasonably invariant to the type of shadows that we will encounter in the testing track.
 
 ### Jittering
 
 In the real world, the mount that the camera is attached to is not perfectly solid. Because of this, whenever the car hits a bump, the image the camera generates will be shifted and rotated very slightly due to the jostling. To address this, we introduce small random shifts and rotations into the image.
-
-~~~ python 
-
-# TODO
-
-~~~
 
 This augmentation method can easily be skipped for the purpose of this simulation, as our camera does not jostle. I chose to include it simply as an excercise for myself.
 
@@ -135,11 +125,11 @@ I chose to convert the images to [HSV](https://en.wikipedia.org/wiki/HSL_and_HSV
 
 ### The Generator
 
-~~~ python
+I created a generator to apply all of the above transformations randomly on a batch of training data. Using a generator for the has several advantages, including:
 
-# TODO: Add image of test track
-
-~~~
+- All of the image data does not need to be loaded and augmented before training. This can be done in real time with a generator.
+- Augmentation can be done at random, allowing for nearly infinite training data. 
+- Because the data is augmented on the fly, the model will most likely be much more robust to our challenges, as it is very difficult to over fit a randomized procedure.
 
 ## **Model Construction and Training**
 
@@ -153,11 +143,20 @@ Before being fed into the convolutional layers, the images were resized to **64x
 
 ### Hyperparameters
 
-~~~ python
+The hyperparameters for the model were tuned by trial and error once a decent model performance had been achieved. The end results are as follows:
 
-# TODO: Add image of test track
-
-~~~
+- **Batch Size**: 256  
+  * Chosen because ELU activations perform better with larger batch sizes.
+- **Max Epochs**: 100
+  * Large enough to allow the model to converge.
+- **L2 Regularization**: 0.0001
+  * Applied to every layer without Dropout. Tuned by trial and error.
+- **Dropout Keep Probability**: 0.5
+  * Tuned by trial and error.
+- **Learning Rate**: 0.0007
+  * Tuned by trial and error.
+- **Patience**: 5 epochs
+  * Observed that a patience higher than this did not result in better models.
 
 ### Stopping Conditions
 
@@ -165,27 +164,13 @@ Before training the model, 20% of the training set was reserved as a validation 
 
 ## **Results**
 
-~~~ python
-
-# TODO: Add image of test track
-
-~~~
-
 ### Performance on the Training Track
 
-~~~ python
-
-# TODO: Add image of test track
-
-~~~
+The performance of the model on the training track was nearly perfect. There was a little swerving in the straighter sections of the track, and it took a couple of the sharper turns closer to the edge than optimal, but overall it met my expectations.
 
 ### Performance on the Testing Track
 
-~~~ python
-
-# TODO: Add image of test track
-
-~~~
+The model performed very well on the test track on the lower resolutions of the simulator, completing around 2/3 of the track. It had difficulties on the higher resolutions, only completing around 1/10 of the track. This is a major area for improvement in the model, and will be a focus of mine when I revisit this project in the future. 
 
 ## **Reflections**
 
