@@ -72,6 +72,19 @@ def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
     return filtered_data, filtered_values
 
 
+def correct_angle(theta, camera):
+    theta = np.deg2rad(25*theta)
+    tan = np.tan(np.pi/2 - theta)
+
+    if camera == 'left':
+        arctan = np.arctan((1 - 0.15*tan) / tan)
+    elif camera == 'right':
+        arctan = np.arctan((1 + 0.15*tan) / tan)
+    else:
+        raise ValueError('Camera must be "left" or "right".')
+    return np.rad2deg(arctan)/25
+
+
 def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent, drop_camera=''):
     """
     Concatenates left, right, and center paths and angles, shifting the left/right angles by `angle_shift`.
