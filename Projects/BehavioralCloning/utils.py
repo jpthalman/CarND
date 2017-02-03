@@ -72,17 +72,33 @@ def keep_n_percent_of_data_where(data, values, condition_lambda, percent):
     return filtered_data, filtered_values
 
 
-def correct_angle(theta, camera):
-    theta = np.deg2rad(25*theta)
-    tan = np.tan(np.pi/2 - theta)
+def transform_ang(angle, camera, recovery_dist=15, camera_shift=1.5, angle_range=25):
+    """
+    Transforms a steering angle to the perspective of the left or right camera.
 
-    if camera == 'left':
-        arctan = np.arctan((1 - 0.15*tan) / tan)
-    elif camera == 'right':
-        arctan = np.arctan((1 + 0.15*tan) / tan)
+    Input angle should be normalized between [-1, 1] with the `angle_range` representing
+    the full scale of angles.
+
+    :param angle: The steering angle of the center camera.
+    :param camera: The camera to transform the perspective to. Either 'left' or 'right'.
+    :param recovery_dist: The estimated distance in meters for the car to recover to the center
+        of the lane at the current steering angle.
+    :param camera_shift: The distance in meters from the center camera to the outside cameras.
+    :param angle_range: The maximum degree the steering angles can take. Should be a positive
+        number [0, inf) and represent the angle in degrees, not radians.
+    :return: Corrected steering angle, normalized between [-1, 1].
+    """
+    sign = -np.sign(angle)
+    rad = np.deg2rad(abs(angle_range*angle))
+    tan = np.tan(np.pi/2 - rad)
+
+    if camera == 'right':
+        arctan = np.arctan((sign*recovery_dist + camera_shift*tan) / (tan*recovery_dist))
+    elif camera == 'left':
+        arctan = np.arctan((sign*recovery_dist - camera_shift*tan) / (tan*recovery_dist))
     else:
-        raise ValueError('Camera must be "left" or "right".')
-    return np.rad2deg(arctan)/25
+        raise ValueError("Argument `camera` must be 'left' or 'right'.")
+    return -np.rad2deg(arctan)/angle_range
 
 
 def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent, drop_camera=''):
@@ -105,6 +121,7 @@ def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent, drop_c
     :param angle_shift: The amount to shift the left/right camera images by.
     :param condition_lambda: Condition by which to keep data.
     :param keep_percent: Percent of data to keep where `condition_lambda` is true.
+    :param drop_camera: Identifies a camera to not include load into the set.
     :return: Tuple containing (paths, angles)
     """
     # Remove n% of the frames where the steering angle is close to zero
