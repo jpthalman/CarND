@@ -101,4 +101,25 @@ def transform_perspective(im, new_size, src, dst, interpolation=cv2.INTER_LINEAR
     return cv2.warpPerspective(im, M, new_size, flags=interpolation)
 
 
+def histogram(input):
+    hist = np.sum(input[input.shape[0]//2:, :], axis=0)
 
+    mid = hist.shape[0]//2
+    left = np.argmax(hist[:mid])
+    right = np.argmax(hist[mid:]) + mid
+    return hist, left, right
+
+
+def sliding_window(im, n_windows, width):
+    h, w = im.shape
+
+    window_size = h // n_windows
+    window_idx = np.arange(-h, 0, window_size)
+    window_idx = np.append(-window_idx, [0])
+
+    _, left_start, right_start = histogram(im[h//2:, :])
+
+    for window in window_idx:
+        pass
+
+    return None
