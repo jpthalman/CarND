@@ -4,11 +4,6 @@ import cv2
 import matplotlib.pyplot as plt
 
 
-def calibrate_camera():
-    cwd = os.getcwd()
-    pass
-
-
 def colorspace_threshold(im, color_space, channel, thresholds):
     """
     Returns a binary heatmap of a transformed color channel of an image.
@@ -30,11 +25,11 @@ def colorspace_threshold(im, color_space, channel, thresholds):
     else:
         color_ch = new_color_space
 
-    color_ch = np.uint8(255*color_ch/np.max(color_ch))
+    color_ch = np.uint8(255.*color_ch/np.max(color_ch))
     lower, upper = thresholds
 
     binary_output = np.zeros_like(color_ch)
-    binary_output[(color_ch > lower) & (color_ch <= color_ch)] = 1
+    binary_output[(color_ch > lower) & (color_ch <= upper)] = 1
     return binary_output
 
 
@@ -76,9 +71,70 @@ def gradient_threshold(im, color_space, channel, method, thresholds, kernel_size
         raise ValueError("Argument 'method' must be 'x', 'y', 'm', or 'd'.")
 
     lower, upper = thresholds
+    operator = np.uint8(255. * operator / np.max(operator))
+
     binary_output = np.zeros_like(operator)
     binary_output[(operator > lower) & (operator <= upper)] = 1
     return binary_output
 
 
+def calibrate_camera(cal_ims_dir, nx, ny):
+    path = os.getcwd() + cal_ims_dir
+    shape = None
+    objpoints = []
+    imgpoints = []
 
+    objp = np.zeros((nx*ny, 3), np.float32)
+    objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
+
+    for im_path in os.listdir(path):
+        im = cv2.imread(path + im_path)
+        gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+        shape = gray.shape
+        ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
+
+        if ret:
+            imgpoints.append(corners)
+            objpoints.append(objp)
+
+    ret, M, dist, rvecs, tvecs = cv2.calibrateCamera(
+        objpoints,
+        imgpoints,
+        (shape[1], shape[0]),
+        None,
+        None
+      )
+    return ret, M, dist, rvecs, tvecs
+
+
+def undistort_img(im, M, dist):
+    return cv2.undistort(im, M, dist, None, M)
+
+
+def transform_perspective(im, new_size, src, dst, interpolation=cv2.INTER_LINEAR):
+    M = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(im, M, new_size, flags=interpolation)
+
+
+def histogram(input):
+    hist = np.sum(input[input.shape[0]//2:, :], axis=0)
+
+    mid = hist.shape[0]//2
+    left = np.argmax(hist[:mid])
+    right = np.argmax(hist[mid:]) + mid
+    return hist, left, right
+
+
+def sliding_window(im, n_windows, width):
+    h, w = im.shape
+
+    window_size = h // n_windows
+    window_idx = np.arange(-h, 0, window_size)
+    window_idx = np.append(-window_idx, [0])
+
+    _, left_start, right_start = histogram(im[h//2:, :])
+
+    for window in window_idx:
+        pass
+
+    return None
