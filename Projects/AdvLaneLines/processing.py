@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -52,6 +53,45 @@ def sobel_gradient_threshold(im, method, kernel_size, thresholds):
     lower, upper = thresholds
     binary_output = np.zeros_like(operator)
     binary_output[(operator > lower) & (operator <= upper)] = 1
+    return binary_output
+
+
+def calibrate_camera(cal_ims_dir, nx, ny):
+    cwd = os.getcwd()
+    shape = None
+    objpoints = []
+    imgpoints = []
+
+    objp = np.zeros((nx*ny, 3), np.float32)
+    objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
+
+    for im_path in os.listdir(cwd + cal_ims_dir):
+        im = cv2.imread(im_path)
+        gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+        shape = gray.shape
+        ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
+
+        if ret:
+            imgpoints.append(corners)
+            objpoints.append(objp)
+
+    ret, M, dist, rvecs, tvecs = cv2.calibrateCamera(
+        objpoints,
+        imgpoints,
+        (shape[1], shape[0]),
+        None,
+        None
+      )
+    return ret, M, dist, rvecs, tvecs
+
+
+def undistort_img(im, M, dist):
+    return cv2.undistort(im, M, dist, None, M)
+
+
+def transform_perspective(im, new_size, src, dst, interpolation=cv2.INTER_LINEAR):
+    M = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(im, M, new_size, flags=interpolation)
 
 
 
