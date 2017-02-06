@@ -1,4 +1,5 @@
 import os
+from collections import namedtuple
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -125,16 +126,58 @@ def histogram(input):
     return hist, left, right
 
 
-def sliding_window(im, n_windows, width):
-    h, w = im.shape
+def sliding_window(warped, n_windows, margin=100, minpix=50):
+    h, w = warped.shape
 
     window_size = h // n_windows
-    window_idx = np.arange(-h, 0, window_size)
-    window_idx = np.append(-window_idx, [0])
+    window_idx = -np.arange(-h, 0, window_size)
 
-    _, left_start, right_start = histogram(im[h//2:, :])
+    _, leftx_base, rightx_base = histogram(warped[h//2:, :])
+    leftx_current, rightx_current = leftx_base, rightx_base
+
+    nonzeroy, nonzerox = warped.nonzero()
+    left_lane_inds, right_lane_inds = [], []
+
+    Index = namedtuple('Index', [
+        'yhigh', 'ylow', 'xleft_high', 'xleft_low',
+        'xright_high', 'xright_low'
+    ])
 
     for window in window_idx:
-        pass
+        idx = Index(
+            yhigh=window,
+            ylow=max(window-window_size, 0),
+            xleft_high=leftx_current + margin,
+            xleft_low=leftx_current - margin,
+            xright_high=rightx_current + margin,
+            xright_low=rightx_current - margin
+          )
+        good_left_inds = (
+            (nonzeroy >= idx.ylow) &
+            (nonzeroy < idx.yhigh) &
+            (nonzerox >= idx.xleft_low) &
+            (nonzerox < idx.xleft_high)
+          ).nonzero()[0]
+        good_right_inds = (
+            (nonzeroy >= idx.ylow) &
+            (nonzeroy < idx.yhigh) &
+            (nonzerox >= idx.xright_low) &
+            (nonzerox < idx.xright_high)
+          ).nonzero()[0]
 
-    return None
+        left_lane_inds.append(good_left_inds)
+        right_lane_inds.append(good_right_inds)
+
+        if len(good_left_inds) > minpix:
+            leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+        if len(good_right_inds) > minpix:
+            rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+
+    left_lane_inds = np.concatenate(left_lane_inds)
+    right_lane_inds = np.concatenate(right_lane_inds)
+
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds]
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+    return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2)
