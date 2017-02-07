@@ -6,6 +6,7 @@ from moviepy.editor import VideoFileClip
 
 from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
                        transform_perspective, sliding_window, get_return_values
+from checks import roughly_parallel
 
 
 class LaneFinder(object):
@@ -48,6 +49,13 @@ class LaneFinder(object):
         # Combine the result with the original image
         result = cv2.addWeighted(undistorted, 1, new_warp, 0.3, 0)
         return result
+
+    @staticmethod
+    def __check_fit(left, right):
+        checks_passed = [
+            roughly_parallel(left, right, 0.5)
+          ]
+        return all(checks_passed)
 
 
 if __name__ == '__main__':
