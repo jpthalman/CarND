@@ -143,31 +143,25 @@ def sliding_window(warped, n_windows, margin=100, minpix=50):
     nonzeroy, nonzerox = warped.nonzero()
     left_lane_inds, right_lane_inds = [], []
 
-    Index = namedtuple('Index', [
-        'yhigh', 'ylow', 'xleft_high', 'xleft_low',
-        'xright_high', 'xright_low'
-    ])
-
     for window in window_idx:
-        idx = Index(
-            yhigh=window,
-            ylow=max(window-window_size, 0),
-            xleft_high=leftx_current + margin,
-            xleft_low=leftx_current - margin,
-            xright_high=rightx_current + margin,
-            xright_low=rightx_current - margin
-          )
+        yhigh = window
+        ylow = max(window-window_size, 0)
+        xleft_high = leftx_current + margin
+        xleft_low = leftx_current - margin
+        xright_high = rightx_current + margin
+        xright_low = rightx_current - margin
+
         good_left_inds = (
-            (nonzeroy >= idx.ylow) &
-            (nonzeroy < idx.yhigh) &
-            (nonzerox >= idx.xleft_low) &
-            (nonzerox < idx.xleft_high)
+            (nonzeroy >= ylow) &
+            (nonzeroy < yhigh) &
+            (nonzerox >= xleft_low) &
+            (nonzerox < xleft_high)
           ).nonzero()[0]
         good_right_inds = (
-            (nonzeroy >= idx.ylow) &
-            (nonzeroy < idx.yhigh) &
-            (nonzerox >= idx.xright_low) &
-            (nonzerox < idx.xright_high)
+            (nonzeroy >= ylow) &
+            (nonzeroy < yhigh) &
+            (nonzerox >= xright_low) &
+            (nonzerox < xright_high)
           ).nonzero()[0]
 
         left_lane_inds.append(good_left_inds)
@@ -186,13 +180,6 @@ def sliding_window(warped, n_windows, margin=100, minpix=50):
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
     return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2)
-
-
-def roughly_parallel(left, right, percent):
-    similar = True
-    for l_coeff, r_coeff in zip(map(abs, left[:2]), map(abs, right[:2])):
-        similar &= abs(l_coeff - r_coeff)/max(l_coeff, r_coeff) < percent
-    return similar
 
 
 def get_return_values(coords, f):
