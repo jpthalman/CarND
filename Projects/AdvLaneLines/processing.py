@@ -5,7 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 
 
-def colorspace_threshold(im, color_space, channel, thresholds):
+def colorspace_threshold(im, color_space, channel, thresholds, clahe=False):
     """
     Returns a binary heatmap of a transformed color channel of an image.
 
@@ -17,6 +17,7 @@ def colorspace_threshold(im, color_space, channel, thresholds):
     :param color_space: The cv2 color space to transform the image to.
     :param channel: The channel to grab from the new color shape. Should be 0, 1, 2, or None.
     :param thresholds: Tuple containing (lower, upper), both between 0-255
+    :param clahe: Whether or not to apply CLAHE
     :return: Binary heat map with same dimensions as the original image.
     """
     new_color_space = cv2.cvtColor(im, color_space)
@@ -25,6 +26,10 @@ def colorspace_threshold(im, color_space, channel, thresholds):
         color_ch = new_color_space[..., channel]
     else:
         color_ch = new_color_space
+
+    if clahe:
+        eq = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        color_ch = eq.apply(color_ch)
 
     color_ch = np.uint8(255.*color_ch/np.max(color_ch))
     lower, upper = thresholds

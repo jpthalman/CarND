@@ -9,7 +9,7 @@ from processing import calibrate_camera, undistort_img, colorspace_threshold, gr
 
 
 class LaneFinder(object):
-    def __init__(self, mtx, dist, src, dst):
+    def __init__(self, M, dist, src, dst):
         self.M = M
         self.dist = dist
         self.src = src
@@ -41,7 +41,7 @@ class LaneFinder(object):
         pts = np.hstack((pts_left, pts_right))
 
         # Draw the lane onto the warped blank image
-        cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
+        cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
         # Warp the blank back to original image space
         new_warp = transform_perspective(color_warp, (w, h), dst, src)
