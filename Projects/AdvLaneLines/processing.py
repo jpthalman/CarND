@@ -131,6 +131,11 @@ def histogram(input):
     return hist, left, right
 
 
+def get_return_values(coords, f, shift=0):
+    a, b, c = f
+    return (c + shift) + b*coords + a*coords**2
+
+
 def sliding_window(warped, n_windows, margin=100, minpix=50):
     h, w = warped.shape
 
@@ -182,6 +187,22 @@ def sliding_window(warped, n_windows, margin=100, minpix=50):
     return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2)
 
 
-def get_return_values(coords, f):
-    a, b, c = f
-    return c + b*coords + a*coords**2
+def predict_from_margin_around_prev_fit(im, left, right, margin=100):
+    nonzero = im.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+
+    left_lane_inds = (
+        (nonzerox > get_return_values(nonzeroy, left, -margin)) &
+        (nonzerox < get_return_values(nonzeroy, left, margin))
+      )
+    right_lane_inds = (
+        (nonzerox > get_return_values(nonzeroy, right, -margin)) &
+        (nonzerox < get_return_values(nonzeroy, right, margin))
+      )
+
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds]
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+    return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2)
