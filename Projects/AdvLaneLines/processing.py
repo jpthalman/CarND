@@ -181,3 +181,15 @@ def sliding_window(warped, n_windows, margin=100, minpix=50):
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
     return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2)
+
+
+def roughly_parallel(left, right, percent):
+    similar = True
+    for l_coeff, r_coeff in zip(map(abs, left[:2]), map(abs, right[:2])):
+        similar &= abs(l_coeff - r_coeff)/max(l_coeff, r_coeff) < percent
+    return similar
+
+
+def get_return_values(coords, f):
+    a, b, c = f
+    return c + b*coords + a*coords**2
