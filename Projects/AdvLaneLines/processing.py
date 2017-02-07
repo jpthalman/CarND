@@ -188,6 +188,9 @@ def sliding_window(warped, n_windows, margin=100, minpix=50):
 
 
 def predict_from_margin_around_prev_fit(im, left, right, margin=100):
+    if left is None or right is None:
+        return None, None
+
     nonzero = im.nonzero()
     nonzeroy = np.array(nonzero[0])
     nonzerox = np.array(nonzero[1])
