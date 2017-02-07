@@ -10,11 +10,12 @@ from checks import roughly_parallel
 
 
 class LaneFinder(object):
-    def __init__(self, M, dist, src, dst):
+    def __init__(self, M, dist, src, dst, debug=False):
         self.M = M
         self.dist = dist
         self.src = src
         self.dst = dst
+        self.debug = debug
         self.left_prev = None
         self.right_prev = None
 
@@ -53,9 +54,13 @@ class LaneFinder(object):
 
         # Warp the blank back to original image space
         new_warp = transform_perspective(color_warp, (w, h), dst, src)
+
         # Combine the result with the original image
-        result = cv2.addWeighted(undistorted, 1, new_warp, 0.3, 0)
-        return result
+        if self.debug:
+            color_thresh = np.dstack((np.zeros_like(grad_thresh), grad_thresh, color_thresh))*255
+            return cv2.addWeighted(color_thresh, 1, new_warp, 0.3, 0)
+        else:
+            return cv2.addWeighted(undistorted, 1, new_warp, 0.3, 0)
 
     @staticmethod
     def __valid_fit(left, right):
@@ -92,8 +97,7 @@ if __name__ == '__main__':
     # detected = find_lane_lines(im, M, dist, src, dst)
     # plt.imshow(detected)
 
-    lane_finder = LaneFinder(M, dist, src, dst)
-
+    lane_finder = LaneFinder(M, dist, src, dst, debug=True)
     project_video_output = 'project_video_output.mp4'
 
     try: os.remove(project_video_output)
