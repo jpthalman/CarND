@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
 
 from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
-                       transform_perspective, sliding_window, get_return_values
+                       transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit
 from checks import roughly_parallel
 
 
@@ -15,11 +15,13 @@ class LaneFinder(object):
         self.dist = dist
         self.src = src
         self.dst = dst
+        self.left_prev = None
+        self.right_prev = None
 
     def __call__(self, im):
         undistorted = undistort_img(im, self.M, self.dist)
 
-        color_thresh = colorspace_threshold(undistorted, cv2.COLOR_RGB2HSV, 2, (215, 255))
+        color_thresh = colorspace_threshold(undistorted, cv2.COLOR_RGB2HSV, 2, (225, 255), clahe=True)
         grad_thresh = gradient_threshold(undistorted, cv2.COLOR_RGB2HSV, 2, 'x', (10, 30), 3)
 
         combined_thresh = np.zeros_like(grad_thresh)
@@ -28,7 +30,12 @@ class LaneFinder(object):
         h, w = color_thresh.shape[:2]
 
         top_down = transform_perspective(combined_thresh, (w, h), self.src, self.dst)
-        left_fit, right_fit = sliding_window(top_down, 9)
+
+        left_fit, right_fit = predict_from_margin_around_prev_fit(top_down, self.left_prev, self.right_prev)
+        if left_fit is None or not self.__valid_fit(left_fit, right_fit):
+            left_fit, right_fit = sliding_window(top_down, 9)
+
+        self.left_prev, self.right_prev = left_fit, right_fit
 
         y_axis = np.arange(ymax, dtype=np.float32)
         x_left, x_right = get_return_values(y_axis, left_fit), get_return_values(y_axis, right_fit)
@@ -51,9 +58,9 @@ class LaneFinder(object):
         return result
 
     @staticmethod
-    def __check_fit(left, right):
+    def __valid_fit(left, right):
         checks_passed = [
-            roughly_parallel(left, right, 0.5)
+            roughly_parallel(left, right, 0.8)
           ]
         return all(checks_passed)
 
@@ -88,6 +95,10 @@ if __name__ == '__main__':
     lane_finder = LaneFinder(M, dist, src, dst)
 
     project_video_output = 'project_video_output.mp4'
+
+    try: os.remove(project_video_output)
+    except FileNotFoundError: pass
+
     original = VideoFileClip('project_video.mp4')
     processed = original.fl_image(lane_finder)
     processed.write_videofile(project_video_output, audio=False)
