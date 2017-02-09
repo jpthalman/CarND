@@ -1,5 +1,4 @@
 import os
-from collections import namedtuple
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -136,8 +135,14 @@ def get_return_values(coords, f, shift=0):
     return (c + shift) + b*coords + a*coords**2
 
 
-def get_curvature(f):
-    pass
+def get_curvature(x, y):
+    ym_per_pix = 30/720
+    xm_per_pix = 3.7/700
+    y_eval = np.max(y)
+
+    a, b, c = np.polyfit(y*ym_per_pix, x*xm_per_pix, 2)
+    curvature = (1 + (2*a*y_eval*ym_per_pix + b)**2)**1.5 / abs(2*a)
+    return curvature
 
 def sliding_window(warped, n_windows, margin=100, minpix=50):
     h, w = warped.shape
@@ -187,12 +192,14 @@ def sliding_window(warped, n_windows, margin=100, minpix=50):
     lefty = nonzeroy[left_lane_inds]
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
-    return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2)
+
+    l_curv, r_curv = get_curvature(leftx, lefty), get_curvature(rightx, righty)
+    return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2), l_curv, r_curv
 
 
 def predict_from_margin_around_prev_fit(im, left, right, margin=100):
     if left is None or right is None:
-        return None, None
+        return None, None, None, None
 
     nonzero = im.nonzero()
     nonzeroy = np.array(nonzero[0])
@@ -211,4 +218,6 @@ def predict_from_margin_around_prev_fit(im, left, right, margin=100):
     lefty = nonzeroy[left_lane_inds]
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
-    return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2)
+
+    l_curv, r_curv = get_curvature(leftx, lefty), get_curvature(rightx, righty)
+    return np.polyfit(lefty, leftx, 2), np.polyfit(righty, rightx, 2), l_curv, r_curv

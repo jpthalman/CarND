@@ -12,3 +12,9 @@ def roughly_parallel(left, right, percent):
     for l_coeff, r_coeff in zip(map(abs, left[:2]), map(abs, right[:2])):
         similar &= abs(l_coeff - r_coeff)/max(l_coeff, r_coeff) < percent
     return similar
+
+
+def similar_curvature(left, right, percent):
+    min = np.min([left, right])
+    max = np.max([left, right])
+    return min/max > percent

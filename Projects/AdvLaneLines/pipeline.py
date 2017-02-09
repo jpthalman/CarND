@@ -7,7 +7,7 @@ from moviepy.editor import VideoFileClip
 from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
                        transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit, \
                        get_curvature
-from checks import roughly_parallel
+from checks import roughly_parallel, similar_curvature
 
 
 class LaneFinder(object):
@@ -33,12 +33,21 @@ class LaneFinder(object):
 
         top_down = transform_perspective(combined_thresh, (w, h), self.src, self.dst)
 
-        left_fit, right_fit = predict_from_margin_around_prev_fit(top_down, self.left_prev, self.right_prev)
-        if left_fit is None or not self.__valid_fit(left_fit, right_fit, left_curvature, right_curvature):
-            left_fit, right_fit = sliding_window(top_down, 9)
+        # Get the predicted lane lines and curvature using the previous fit
+        left_fit, right_fit, l_curv, r_curv = predict_from_margin_around_prev_fit(
+            top_down,
+            self.left_prev,
+            self.right_prev
+          )
 
+        # If the fit is not valid, use the sliding window technique
+        if left_fit is None or not self.__valid_fit(left_fit, right_fit, l_curv, r_curv):
+            left_fit, right_fit, l_curv, r_curv = sliding_window(top_down, 9)
+
+        # Store fit for next prediction
         self.left_prev, self.right_prev = left_fit, right_fit
 
+        # Get fitted points and plot
         y_axis = np.arange(ymax, dtype=np.float32)
         x_left, x_right = get_return_values(y_axis, left_fit), get_return_values(y_axis, right_fit)
 
@@ -53,7 +62,6 @@ class LaneFinder(object):
         # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
-
         # Warp the blank back to original image space
         new_warp = transform_perspective(color_warp, (w, h), dst, src)
 
@@ -62,10 +70,12 @@ class LaneFinder(object):
             color_thresh = np.dstack((np.zeros_like(grad_thresh), grad_thresh, color_thresh))*255
             return cv2.addWeighted(color_thresh, 1, new_warp, 0.3, 0)
         else:
-            return cv2.addWeighted(undistorted, 1, new_warp, 0.3, 0)
+            text = 'Curvature: %5.2f' % np.mean((l_curv, r_curv))
+            output = cv2.putText(undistorted, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,)*3)
+            return cv2.addWeighted(output, 1, new_warp, 0.3, 0)
 
     @staticmethod
-    def __valid_fit(left, right, left_curvature, right_curvature):
+    def __valid_fit(left, right, l_curv, r_curv):
         checks_passed = [
             roughly_parallel(left, right, 0.9)
           ]
