@@ -6,7 +6,7 @@ from moviepy.editor import VideoFileClip
 
 from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
                        transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit, \
-                       gaussian_blur
+                       gaussian_blur, n_bitwise_or
 from checks import roughly_parallel, similar_curvature
 
 
@@ -24,11 +24,14 @@ class LaneFinder(object):
         undistorted = undistort_img(im, self.M, self.dist)
 
         color_thresh = colorspace_threshold(undistorted, cv2.COLOR_RGB2HSV, 2, (225, 255), clahe=True)
-        grad_thresh = gradient_threshold(undistorted, cv2.COLOR_RGB2HSV, 2, 'x', (10, 30), 3)
 
-        combined_thresh = np.zeros_like(grad_thresh)
-        combined_thresh[(grad_thresh == 1) | (color_thresh == 1)] = 1
-        combined_thresh = gaussian_blur(combined_thresh, 25)
+        hls1_x = gradient_threshold(im, cv2.COLOR_RGB2HLS, 1, 'x', (50, 225))
+        hls1_y = gradient_threshold(im, cv2.COLOR_RGB2HLS, 1, 'y', (50, 225))
+        hls2_x = gradient_threshold(im, cv2.COLOR_RGB2HLS, 2, 'x', (50, 255))
+        hls2_y = gradient_threshold(im, cv2.COLOR_RGB2HLS, 2, 'y', (50, 255))
+
+        combined_thresh = n_bitwise_or(color_thresh, hls1_x, hls1_y, hls2_x, hls2_y)
+        combined_thresh = gaussian_blur(combined_thresh, 5)
 
         h, w = color_thresh.shape[:2]
 
@@ -38,15 +41,21 @@ class LaneFinder(object):
         left_fit, right_fit, l_curv, r_curv = predict_from_margin_around_prev_fit(
             top_down,
             self.left_prev,
-            self.right_prev
+            self.right_prev,
+            margin=100
           )
+        prev_info = True
 
         # If the fit is not valid, use the sliding window technique
         if left_fit is None or not self.__valid_fit(left_fit, right_fit, l_curv, r_curv):
+            prev_info = False
             left_fit, right_fit, l_curv, r_curv = sliding_window(top_down, 9)
 
         # Store fit for next prediction
-        self.left_prev, self.right_prev = left_fit, right_fit
+        if prev_info or self.__valid_fit(left_fit, right_fit, l_curv, r_curv):
+            self.left_prev, self.right_prev = left_fit, right_fit
+        else:
+            left_fit, right_fit = self.left_prev, self.right_prev
 
         # Get fitted points and plot
         y_axis = np.arange(ymax, dtype=np.float32)
@@ -61,24 +70,31 @@ class LaneFinder(object):
         pts = np.hstack((pts_left, pts_right))
 
         # Draw the lane onto the warped blank image
-        cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+        cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 255))
 
         # Warp the blank back to original image space
         new_warp = transform_perspective(color_warp, (w, h), dst, src)
 
+        # Draw colored circle identifying whether prev lines were used
+        color = (0, 255, 0)
+        if not prev_info:
+            color = (255, 0, 0)
+        new_warp = cv2.circle(new_warp, (xmax-100, 100), 11, color, -1)
+
         # Combine the result with the original image
         if self.debug:
-            color_thresh = np.dstack((np.zeros_like(grad_thresh), grad_thresh, color_thresh))*255
+            grad_thresh = n_bitwise_or(hls1_x, hls1_y, hls2_x, hls2_y)
+            color_thresh = np.dstack((np.zeros_like(combined_thresh), grad_thresh, color_thresh))*255
             return cv2.addWeighted(color_thresh, 1, new_warp, 0.3, 0)
         else:
             text = 'Curvature: %5.2f m' % np.mean((l_curv, r_curv))
             output = cv2.putText(undistorted, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,)*3)
-            return cv2.addWeighted(output, 1, new_warp, 0.3, 0)
+            return cv2.addWeighted(output, 1, new_warp, 0.4, 0)
 
     @staticmethod
     def __valid_fit(left, right, l_curv, r_curv):
         checks_passed = [
-            roughly_parallel(left, right, 0.9)
+            roughly_parallel(left, right, 0.95)
           ]
         return all(checks_passed)
 
@@ -106,9 +122,6 @@ if __name__ == '__main__':
         [xmax - shift, shift],
         [xmax - shift, ymax]
     ])
-
-    # detected = find_lane_lines(im, M, dist, src, dst)
-    # plt.imshow(detected)
 
     lane_finder = LaneFinder(M, dist, src, dst, debug=False)
     project_video_output = 'project_video_output.mp4'
