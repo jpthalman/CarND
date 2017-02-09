@@ -17,4 +17,4 @@ def roughly_parallel(left, right, percent):
 def similar_curvature(left, right, percent):
     min = np.min([left, right])
     max = np.max([left, right])
-    return min/max > percent
+    return min/max > percent if max < 1000 else True
