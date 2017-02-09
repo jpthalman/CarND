@@ -6,7 +6,7 @@ from moviepy.editor import VideoFileClip
 
 from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
                        transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit, \
-                       get_curvature
+                       gaussian_blur
 from checks import roughly_parallel, similar_curvature
 
 
@@ -28,6 +28,7 @@ class LaneFinder(object):
 
         combined_thresh = np.zeros_like(grad_thresh)
         combined_thresh[(grad_thresh == 1) | (color_thresh == 1)] = 1
+        combined_thresh = gaussian_blur(combined_thresh, 25)
 
         h, w = color_thresh.shape[:2]
 
@@ -70,7 +71,7 @@ class LaneFinder(object):
             color_thresh = np.dstack((np.zeros_like(grad_thresh), grad_thresh, color_thresh))*255
             return cv2.addWeighted(color_thresh, 1, new_warp, 0.3, 0)
         else:
-            text = 'Curvature: %5.2f' % np.mean((l_curv, r_curv))
+            text = 'Curvature: %5.2f m' % np.mean((l_curv, r_curv))
             output = cv2.putText(undistorted, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,)*3)
             return cv2.addWeighted(output, 1, new_warp, 0.3, 0)
 

@@ -84,6 +84,19 @@ def gradient_threshold(im, color_space, channel, method, thresholds, kernel_size
 
 
 def calibrate_camera(cal_ims_dir, nx, ny):
+    """
+    Uses chessboard images to calibrate a distortion matrix to correct for warping.
+
+    :param cal_ims_dir: The directory which contains the chessboard images
+    :param nx: The number of horizontal corners in the chessboards
+    :param ny: The number of vertical corners in the chessboards
+    :return: The return values of cv2.calibrateCamera
+        `ret`: Whether the calibration was successful
+        `M`: The calculated calibration matrix
+        `dist`: The calculated distortion coefficients
+        `rvecs`: Rotation of the camera
+        `tvecs`: Translation of the camera
+    """
     path = os.getcwd() + cal_ims_dir
     shape = None
     objpoints = []
@@ -113,15 +126,39 @@ def calibrate_camera(cal_ims_dir, nx, ny):
 
 
 def undistort_img(im, M, dist):
+    """
+    Uses the calibrated Matrix and Distortion coefficients to undistort an image.
+
+    :param im: The image to undistort
+    :param M: The calibrated distortion matrix
+    :param dist: The Calibrated distortion coefficients
+    :return: Undistorted image
+    """
     return cv2.undistort(im, M, dist, None, M)
 
 
 def transform_perspective(im, new_size, src, dst, interpolation=cv2.INTER_LINEAR):
+    """
+    Meant to transform the perspective of a road image to a Top-Down view.
+
+    :param im: Original image
+    :param new_size: The size of the transformed image
+    :param src: Source points on the original image
+    :param dst: Destination points to transform the source points to in the transformed image
+    :param interpolation: How to fill in missing pixels. cv2.INTER_LINEAR is default.
+    :return: Transformed image with size `new_size`
+    """
     M = cv2.getPerspectiveTransform(src, dst)
     return cv2.warpPerspective(im, M, new_size, flags=interpolation)
 
 
 def histogram(input):
+    """
+    Creates a histogram of the bottom half of an image and finds the maximums of the left and right sides.
+
+    :param input: The original image
+    :return: Histogram of the lower half of the image, left maximum index, right maximum index.
+    """
     hist = np.sum(input[input.shape[0]//2:, :], axis=0)
 
     mid = hist.shape[0]//2
@@ -131,11 +168,26 @@ def histogram(input):
 
 
 def get_return_values(coords, f, shift=0):
+    """
+    Takes in a coordinate set and a second degree polynomial and returns the functions output for the given coords.
+
+    :param coords: The coordinated to evaluate the polynomial on
+    :param f: The polynomial weights
+    :param shift: Optional constant shift
+    :return: 1D array of the functional output of the polynomial for the given coords
+    """
     a, b, c = f
     return (c + shift) + b*coords + a*coords**2
 
 
 def get_curvature(x, y):
+    """
+    Given a set of X and Y values for a 2nd degree polynomial, finds the curvature of the lines in world space.
+
+    :param x: X coords
+    :param y: Y coords
+    :return: Curvature in meters
+    """
     ym_per_pix = 30/720
     xm_per_pix = 3.7/700
     y_eval = np.max(y)
@@ -144,7 +196,26 @@ def get_curvature(x, y):
     curvature = (1 + (2*a*y_eval*ym_per_pix + b)**2)**1.5 / abs(2*a)
     return curvature
 
+def gaussian_blur(im, kernel_size):
+    """
+    Applies gaussian blurring to an image to reduce noise.
+
+    :param im: Image to smooth
+    :param kernel_size: Kernel size for smoothing
+    :return: Smoothed image
+    """
+    return cv2.GaussianBlur(im , (kernel_size, kernel_size), 0)
+
 def sliding_window(warped, n_windows, margin=100, minpix=50):
+    """
+
+
+    :param warped:
+    :param n_windows:
+    :param margin:
+    :param minpix:
+    :return:
+    """
     h, w = warped.shape
 
     window_size = h // n_windows
