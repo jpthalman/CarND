@@ -136,6 +136,9 @@ def get_return_values(coords, f, shift=0):
     return (c + shift) + b*coords + a*coords**2
 
 
+def get_curvature(f):
+    pass
+
 def sliding_window(warped, n_windows, margin=100, minpix=50):
     h, w = warped.shape
 

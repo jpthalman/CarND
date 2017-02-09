@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
 
 from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
-                       transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit
+                       transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit, \
+                       get_curvature
 from checks import roughly_parallel
 
 
@@ -33,7 +34,7 @@ class LaneFinder(object):
         top_down = transform_perspective(combined_thresh, (w, h), self.src, self.dst)
 
         left_fit, right_fit = predict_from_margin_around_prev_fit(top_down, self.left_prev, self.right_prev)
-        if left_fit is None or not self.__valid_fit(left_fit, right_fit):
+        if left_fit is None or not self.__valid_fit(left_fit, right_fit, left_curvature, right_curvature):
             left_fit, right_fit = sliding_window(top_down, 9)
 
         self.left_prev, self.right_prev = left_fit, right_fit
@@ -52,6 +53,7 @@ class LaneFinder(object):
         # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
+
         # Warp the blank back to original image space
         new_warp = transform_perspective(color_warp, (w, h), dst, src)
 
@@ -63,9 +65,9 @@ class LaneFinder(object):
             return cv2.addWeighted(undistorted, 1, new_warp, 0.3, 0)
 
     @staticmethod
-    def __valid_fit(left, right):
+    def __valid_fit(left, right, left_curvature, right_curvature):
         checks_passed = [
-            roughly_parallel(left, right, 0.8)
+            roughly_parallel(left, right, 0.9)
           ]
         return all(checks_passed)
 
@@ -97,7 +99,7 @@ if __name__ == '__main__':
     # detected = find_lane_lines(im, M, dist, src, dst)
     # plt.imshow(detected)
 
-    lane_finder = LaneFinder(M, dist, src, dst, debug=True)
+    lane_finder = LaneFinder(M, dist, src, dst, debug=False)
     project_video_output = 'project_video_output.mp4'
 
     try: os.remove(project_video_output)
