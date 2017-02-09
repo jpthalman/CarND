@@ -83,6 +83,13 @@ def gradient_threshold(im, color_space, channel, method, thresholds, kernel_size
     return binary_output
 
 
+def n_bitwise_or(*args):
+    output = args[0]
+    for i in range(1, len(args)):
+        output = cv2.bitwise_or(output, args[i])
+    return output
+
+
 def calibrate_camera(cal_ims_dir, nx, ny):
     """
     Uses chessboard images to calibrate a distortion matrix to correct for warping.
