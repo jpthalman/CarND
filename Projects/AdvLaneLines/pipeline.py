@@ -7,7 +7,7 @@ from moviepy.editor import VideoFileClip
 from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
                        transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit, \
                        gaussian_blur, n_bitwise_or
-from checks import roughly_parallel, similar_curvature
+from checks import roughly_parallel, similar_curvature, not_same_line
 
 
 class LaneFinder(object):
@@ -23,25 +23,32 @@ class LaneFinder(object):
     def __call__(self, im):
         undistorted = undistort_img(im, self.M, self.dist)
 
-        color_thresh = colorspace_threshold(undistorted, cv2.COLOR_RGB2HSV, 2, (225, 255), clahe=True)
+        color_thresh = colorspace_threshold(
+            im=undistorted,
+            thresholds=(225,255),
+            color_space=cv2.COLOR_RGB2HSV,
+            channel=2,
+            clahe=True
+          )
 
-        hls1_x = gradient_threshold(im, cv2.COLOR_RGB2HLS, 1, 'x', (50, 225))
-        hls1_y = gradient_threshold(im, cv2.COLOR_RGB2HLS, 1, 'y', (50, 225))
-        hls2_x = gradient_threshold(im, cv2.COLOR_RGB2HLS, 2, 'x', (50, 255))
-        hls2_y = gradient_threshold(im, cv2.COLOR_RGB2HLS, 2, 'y', (50, 255))
+        hls = cv2.cvtColor(undistorted, cv2.COLOR_RGB2HLS)
+        hls1_x = gradient_threshold(im=hls, channel=1, method='x', thresholds=(50, 225))
+        hls1_y = gradient_threshold(im=hls, channel=1, method='y', thresholds=(50, 225))
+        hls2_x = gradient_threshold(im=hls, channel=2, method='x', thresholds=(50, 255))
+        hls2_y = gradient_threshold(im=hls, channel=2, method='y', thresholds=(50, 255))
 
         combined_thresh = n_bitwise_or(color_thresh, hls1_x, hls1_y, hls2_x, hls2_y)
         combined_thresh = gaussian_blur(combined_thresh, 5)
 
-        h, w = color_thresh.shape[:2]
+        h, w = combined_thresh.shape[:2]
 
         top_down = transform_perspective(combined_thresh, (w, h), self.src, self.dst)
 
         # Get the predicted lane lines and curvature using the previous fit
         left_fit, right_fit, l_curv, r_curv = predict_from_margin_around_prev_fit(
-            top_down,
-            self.left_prev,
-            self.right_prev,
+            im=top_down,
+            left=self.left_prev,
+            right=self.right_prev,
             margin=100
           )
         prev_info = True
@@ -79,7 +86,7 @@ class LaneFinder(object):
         color = (0, 255, 0)
         if not prev_info:
             color = (255, 0, 0)
-        new_warp = cv2.circle(new_warp, (xmax-100, 100), 11, color, -1)
+        new_warp = cv2.circle(new_warp, (w-100, 100), 11, color, -1)
 
         # Combine the result with the original image
         if self.debug:
@@ -94,7 +101,8 @@ class LaneFinder(object):
     @staticmethod
     def __valid_fit(left, right, l_curv, r_curv):
         checks_passed = [
-            roughly_parallel(left, right, 0.95)
+            roughly_parallel(left, right, 0.95),
+            not_same_line(left, right)
           ]
         return all(checks_passed)
 
