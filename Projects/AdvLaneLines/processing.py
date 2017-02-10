@@ -4,7 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 
 
-def colorspace_threshold(im, color_space, channel, thresholds, clahe=False):
+def colorspace_threshold(im, thresholds, color_space=None, channel=None, clahe=False):
     """
     Returns a binary heatmap of a transformed color channel of an image.
 
@@ -19,12 +19,13 @@ def colorspace_threshold(im, color_space, channel, thresholds, clahe=False):
     :param clahe: Whether or not to apply CLAHE
     :return: Binary heat map with same dimensions as the original image.
     """
-    new_color_space = cv2.cvtColor(im, color_space)
+    if color_space is not None:
+        im = cv2.cvtColor(im, color_space)
 
     if channel is not None:
-        color_ch = new_color_space[..., channel]
+        color_ch = im[..., channel]
     else:
-        color_ch = new_color_space
+        color_ch = im
 
     if clahe:
         eq = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
@@ -38,7 +39,7 @@ def colorspace_threshold(im, color_space, channel, thresholds, clahe=False):
     return binary_output
 
 
-def gradient_threshold(im, color_space, channel, method, thresholds, kernel_size=3):
+def gradient_threshold(im, channel, method, thresholds, color_space=None, kernel_size=3):
     """
     Returns a binary heat map where the given gradient type is between the thresholds.
 
@@ -54,12 +55,13 @@ def gradient_threshold(im, color_space, channel, method, thresholds, kernel_size
     :param thresholds: Tuple containing (lower, upper) thresholds.
     :return: Binary heat map with same dimensions as the original image.
     """
-    new_color_space = cv2.cvtColor(im, color_space)
+    if color_space is not None:
+        im = cv2.cvtColor(im, color_space)
 
     if channel is not None:
-        color_ch = new_color_space[..., channel]
+        color_ch = im[..., channel]
     else:
-        color_ch = new_color_space
+        color_ch = im
 
     sobelx = np.abs(cv2.Sobel(color_ch, cv2.CV_64F, 1, 0, ksize=kernel_size))
     sobely = np.abs(cv2.Sobel(color_ch, cv2.CV_64F, 0, 1, ksize=kernel_size))
@@ -84,6 +86,12 @@ def gradient_threshold(im, color_space, channel, method, thresholds, kernel_size
 
 
 def n_bitwise_or(*args):
+    """
+    Takes in N binary images and combines them using bitwise or.
+
+    :param args: N binary images of the same size
+    :return: Combined binary images.
+    """
     output = args[0]
     for i in range(1, len(args)):
         output = cv2.bitwise_or(output, args[i])
@@ -215,13 +223,13 @@ def gaussian_blur(im, kernel_size):
 
 def sliding_window(warped, n_windows, margin=100, minpix=50):
     """
+    Applies the sliding window detection algorithm to an image to detect the lane lines.
 
-
-    :param warped:
-    :param n_windows:
-    :param margin:
-    :param minpix:
-    :return:
+    :param warped: Warped image
+    :param n_windows: The number of sliding windows to use
+    :param margin: The width of each sliding window
+    :param minpix: Minimum number of activated pixels per window
+    :return: 2nd degree polynomial fit and it's curvature for each lane line
     """
     h, w = warped.shape
 
@@ -276,6 +284,16 @@ def sliding_window(warped, n_windows, margin=100, minpix=50):
 
 
 def predict_from_margin_around_prev_fit(im, left, right, margin=100):
+    """
+    Uses a margin the previous frames lane lines to make a prediction about this frames lines.
+
+    :param im: Warped image
+    :param left: Previous frames left lane line prediciton
+    :param right: Previous frames right lane line prediciton
+    :param margin: Margin around each line to grab pixels from
+    :return: 2nd degree polynomial fit and it's curvature for each lane line
+    """
+    # Handles the first frame where the is no previous fit
     if left is None or right is None:
         return None, None, None, None
 
