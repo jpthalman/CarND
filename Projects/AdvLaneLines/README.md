@@ -150,11 +150,10 @@ A visualization of the techniques applied to our example image is below:
   
 The distance of the car to the center of the road was calculated by measuring the distance from the **center of the predicted lane lines at the bottom of the image** to the **true center of the image**. This distance in pixels was then trasformed into meters by multiplying by **3.7/700**. The calcualtion of the curvature was done using the following forumla:
 
-Given:
 <div align="center">
 	<img src="http://mathurl.com/okw8s4c.png">
 </div>
-
+  
 <div align="center">
 	<img src="http://mathurl.com/joqlgkp.png">
 </div>
