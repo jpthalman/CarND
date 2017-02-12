@@ -65,8 +65,14 @@ class LaneFinder(object):
             left_fit, right_fit = self.left_prev, self.right_prev
 
         # Get fitted points and plot
-        y_axis = np.arange(ymax, dtype=np.float32)
+        y_axis = np.arange(h, dtype=np.float32)
         x_left, x_right = get_return_values(y_axis, left_fit), get_return_values(y_axis, right_fit)
+
+        # Calculate distance from center of lane
+        xm_per_pix = 3.7/700
+        car_pos = w // 2
+        lane_center = x_right[h-1] - x_left[h-1]
+        dist_from_center = xm_per_pix*abs(lane_center - car_pos)
 
         warp_zero = np.zeros_like(top_down).astype(np.uint8)
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
@@ -80,7 +86,7 @@ class LaneFinder(object):
         cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 255))
 
         # Warp the blank back to original image space
-        new_warp = transform_perspective(color_warp, (w, h), dst, src)
+        new_warp = transform_perspective(color_warp, (w, h), self.dst, self.src)
 
         # Draw colored circle identifying whether prev lines were used
         color = (0, 255, 0)
@@ -94,8 +100,10 @@ class LaneFinder(object):
             color_thresh = np.dstack((np.zeros_like(combined_thresh), grad_thresh, color_thresh))*255
             return cv2.addWeighted(color_thresh, 1, new_warp, 0.3, 0)
         else:
-            text = 'Curvature: %5.2f m' % np.mean((l_curv, r_curv))
-            output = cv2.putText(undistorted, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,)*3)
+            curv = 'Curvature: %5.2f m' % np.mean((l_curv, r_curv))
+            center = 'Dist From Center: %0.2f m' % dist_from_center
+            output = cv2.putText(undistorted, curv, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,)*3)
+            output = cv2.putText(output, center, (100, 130), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,) * 3)
             return cv2.addWeighted(output, 1, new_warp, 0.4, 0)
 
     @staticmethod
