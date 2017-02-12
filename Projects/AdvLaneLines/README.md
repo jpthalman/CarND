@@ -160,7 +160,11 @@ The distance of the car to the center of the road was calculated by measuring th
   
 ## Combining the Techniques into a Pipeline
 
-All of the above techniques were combined in sequence into the `LaneFinder` class, located in the `pipeline` module L13. This class takes in the distortion matrix and coefficients calculated with the chessboard images, and when called on an image, returns the same image with all relevant predictions displayed.
+All of the above techniques were combined in sequence into the `LaneFinder` class, located in the `pipeline` module L13. This class takes in the distortion matrix and coefficients calculated with the chessboard images, and when called on an image, returns the same image with all relevant predictions displayed. An example of this is available below:
+
+<div align="center">
+	<img src="https://github.com/jpthalman/CarND/blob/master/Projects/AdvLaneLines/output_images/pipeline.png">
+</div>
   
 ## Application to Video
   
