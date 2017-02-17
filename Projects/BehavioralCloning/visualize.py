@@ -89,12 +89,33 @@ def load_data(path, file):
     return data
 
 
+def process_image(im):
+    """
+    Crop image, convert to HSV, and resize.
+
+    :param im: Image to normalize
+    :return: Normalized image with shape (h, w, ch)
+
+    :type im: np.ndarray with shape (h, w, 3)
+    :rtype: np.ndarray with shape (h, w, ch)
+    """
+    assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
+
+    im = im[50:135, :]
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    im = cv2.resize(im, (64, 64))
+
+    if im.ndim == 2:
+        im = np.expand_dims(im, -1)
+    return im
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--json', help='The filepath to the JSON file for the model.')
     parser.add_argument('--h5', help='The filepath to the H5 file for the model')
     parser.add_argument('--log', help='The filepath to driving_log.csv')
-    parser.add_argument('--layer', help='Layer to visualize the activations of')
+    parser.add_argument('--layer', help='Name of the Conv Layer of which to visualize the activations')
     parser.add_argument('--fps', default=30, help='FPS for output video')
     parser.add_argument('--dir', default=os.getcwd() + '\\',
                         help='Optional filepath to set the current working directory')
