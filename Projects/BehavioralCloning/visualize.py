@@ -11,28 +11,47 @@ import keras.backend as K
 from keras.models import model_from_json
 
 
+K.set_learning_phase(0)
+
+
 class VisualizeActivations(object):
-    def __init__(self, model, preprocessor, epsilon=1e-7):
+    def __init__(self, model, preprocessor, rectifier, epsilon=1e-7):
         self.model = model
         self.preprocessor = preprocessor
+        self.rectifier = rectifier
         self.epsilon = epsilon
+
         self.layer_dict = dict([(layer.name, layer) for layer in self.model.layers])
+        self.gradients_function = None
 
-    def heat_map(self, layer_name, img_path):
-        im = cv2.imread(img_path)
-        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-
-        w, h = im.shape[:2]
-
-        processed = self.preprocessor(im)
-
+    def set_gradient_function(self, layer_name):
         pred_angle = K.sum(self.model.layers[-1].output)
         layer = self.layer_dict[layer_name]
         grads = K.gradients(pred_angle, layer.output)[0]
 
-        gradients_function = K.function([self.model.layers[0].input], [self.model.output, grads, pred_angle])
+        self.gradients_function = K.function(
+            [self.model.layers[0].input],
+            [self.model.output, grads, pred_angle]
+          )
+        return
 
-        conv_outputs, grads_val, angle = gradients_function([processed])
+    def heat_map(self, layer_name, img_path):
+        if os.path.exists(img_path):
+            im = cv2.imread(img_path)
+        else:
+            raise ValueError('Image does not exist:\n%r' % img_path)
+
+        # im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
+        processed = self.preprocessor(im)
+        processed = np.expand_dims(processed, 0)
+
+        w, h = im.shape[:2]
+
+        if self.gradients_function is None:
+            self.set_gradient_function(layer_name)
+
+        conv_outputs, grads_val, angle = self.gradients_function([processed])
         conv_outputs, grads_val = conv_outputs[0, :], grads_val[0, ...]
 
         class_weights = self.grad_cam_loss(grads_val, angle)
@@ -40,19 +59,19 @@ class VisualizeActivations(object):
         # Create the class activation map
         cam = np.mean(class_weights*conv_outputs, axis=2)
         cam /= np.max(cam)
-        cam = cv2.resize(cam, (h, w))
+        cam = self.rectifier(cam)
 
         heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
         heatmap[np.where(cam < 0.2)] = 0
 
-        output = heatmap * 0.5 + im
+        rgb = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+        output = cv2.addWeighted(rgb, 1, heatmap, 0.4, 0)
 
         length = 50
         color = (0, 255, 0)
-        xshift = length*np.cos(angle)*np.sign(angle)
-        yshift = length*np.sin(angle)
-
-        output = cv2.line(output, (w//2, h), (w//2 + xshift, h-yshift), color)
+        xshift = int(length*np.cos(np.deg2rad(90 + 25*angle)))
+        yshift = int(length*np.sin(np.deg2rad(90 + 25*angle)))
+        output = cv2.line(output, (h//2, w), (h//2 - xshift, w - yshift), color, thickness=2)
         return output
 
     def grad_cam_loss(self, x, angle):
@@ -89,25 +108,18 @@ def load_data(path, file):
     return data
 
 
-def process_image(im):
-    """
-    Crop image, convert to HSV, and resize.
-
-    :param im: Image to normalize
-    :return: Normalized image with shape (h, w, ch)
-
-    :type im: np.ndarray with shape (h, w, 3)
-    :rtype: np.ndarray with shape (h, w, ch)
-    """
-    assert im.ndim == 3 and im.shape[2] == 3, 'Must be a BGR image with shape (h, w, 3)'
-
+def processor(im):
     im = im[50:135, :]
     im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
-    im = cv2.resize(im, (64, 64))
+    return cv2.resize(im, (64, 64))
 
-    if im.ndim == 2:
-        im = np.expand_dims(im, -1)
-    return im
+
+def rectifier(im):
+    resized = cv2.resize(im, (320, 85))
+    top_padding = np.zeros([50, 320])
+    bot_padding = np.zeros([25, 320])
+    output = np.concatenate((top_padding, resized, bot_padding))
+    return output
 
 
 if __name__ == '__main__':
@@ -116,8 +128,8 @@ if __name__ == '__main__':
     parser.add_argument('--h5', help='The filepath to the H5 file for the model')
     parser.add_argument('--log', help='The filepath to driving_log.csv')
     parser.add_argument('--layer', help='Name of the Conv Layer of which to visualize the activations')
-    parser.add_argument('--fps', default=30, help='FPS for output video')
-    parser.add_argument('--dir', default=os.getcwd() + '\\',
+    parser.add_argument('--fps', default=15, help='FPS for output video')
+    parser.add_argument('--dir', default=os.getcwd() + '/',
                         help='Optional filepath to set the current working directory')
     parser.add_argument('--layer-names', action='store_true',
                         help='Flag to print out the layer names of the model and stop execution')
@@ -135,9 +147,9 @@ if __name__ == '__main__':
         model.summary()
         sys.exit()
 
-    activation = VisualizeActivations(model=model, preprocessor=lambda x: x)
-    data = load_data(args.dir, args.log)
+    activation = VisualizeActivations(model=model, preprocessor=processor, rectifier=rectifier)
+    data = load_data(args.dir + 'Data/Center/', args.log)
 
-    frames = [activation.heat_map(args.layer, im_path) for im_path in data['center']]
+    frames = [activation.heat_map(args.layer, im_path) for im_path in data['center'][:1000]]
     video = ImageSequenceClip(frames, fps=args.fps)
     video.write_videofile('activation_heatmap.mp4')
