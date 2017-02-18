@@ -20,3 +20,5 @@ Projects/BehavioralCloning/Data/*
 Projects/BehavioralCloning/UdacityData/*
 Projects/BehavioralCloning/logs/*
 Projects/BehavioralCloning/Models/*
+Projects/VehicleDetection/Data/non-vehicles
+Projects/VehicleDetection/Data/vehicles
