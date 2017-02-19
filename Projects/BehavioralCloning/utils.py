@@ -136,15 +136,18 @@ def concat_all_cameras(data, angle_shift, condition_lambda, keep_percent, drop_c
     left = np.array([im for im in ims[..., 1]])
     right = np.array([im for im in ims[..., 2]])
 
+    transformed_left_angs = np.array([transform_ang(ang, 'left') for ang in angs])
+    transformed_right_angs = np.array([transform_ang(ang, 'right') for ang in angs])
+
     if drop_camera == 'left':
         filtered_paths = np.concatenate((center, right), axis=0)
-        filtered_angs = np.concatenate((angs, angs - angle_shift), axis=0)
+        filtered_angs = np.concatenate((angs, transformed_right_angs), axis=0)
     elif drop_camera == 'right':
         filtered_paths = np.concatenate((center, left), axis=0)
-        filtered_angs = np.concatenate((angs, angs + angle_shift), axis=0)
+        filtered_angs = np.concatenate((angs, transformed_left_angs), axis=0)
     else:
         filtered_paths = np.concatenate((center, right, left), axis=0)
-        filtered_angs = np.concatenate((angs, angs - angle_shift, angs + angle_shift), axis=0)
+        filtered_angs = np.concatenate((angs, transformed_right_angs, transformed_left_angs), axis=0)
 
     # Modify the steering angles of the left and right cameras's images to simulate
     # steering back towards the middle. Aggregate all sets into one.
