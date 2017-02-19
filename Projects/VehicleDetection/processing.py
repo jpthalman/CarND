@@ -6,15 +6,6 @@ import sklearn
 from skimage.feature import hog
 
 
-def load_image(path, color_space=cv2.COLOR_BGR2LUV):
-    im = cv2.imread(path)
-    if im is None:
-        raise FileNotFoundError('Image failed to load from:\n%r' % path)
-    im = cv2.cvtColor(im, color_space)
-    im = cv2.resize(im, (64, 64))
-    return single_img_features(im)
-
-
 # Define a function to return HOG features and visualization
 def get_hog_features(img, orient, pix_per_cell, cell_per_block,
                      vis=False, feature_vec=True):
@@ -61,9 +52,9 @@ def color_hist(img, nbins=32, bins_range=(0, 256)):
     return hist_features
 
 
-def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
-                        hist_bins=32, orient=9,
-                        pix_per_cell=8, cell_per_block=2, hog_channel=0,
+def single_img_features(img, color_space='HSV', spatial_size=(16, 16),
+                        hist_bins=16, orient=9,
+                        pix_per_cell=8, cell_per_block=2, hog_channel='ALL',
                         spatial_feat=True, hist_feat=True, hog_feat=True):
     # 1) Define an empty list to receive features
     img_features = []
@@ -71,13 +62,13 @@ def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
     # 2) Apply color conversion if other than 'RGB'
     if color_space != 'RGB':
         if color_space == 'HSV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+            feature_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         elif color_space == 'LUV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
+            feature_image = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
         elif color_space == 'HLS':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+            feature_image = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
         elif color_space == 'YUV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+            feature_image = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
     else:
         feature_image = np.copy(img)
 
@@ -114,58 +105,25 @@ def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
     return np.concatenate(img_features)
 
 
-# Define a function to extract features from a list of images
-# Have this function call bin_spatial() and color_hist()
-def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
-                     hist_bins=32, orient=9,
-                     pix_per_cell=8, cell_per_block=2, hog_channel=0,
+def extract_features(imgs, color_space='HSV', spatial_size=(16, 16),
+                     hist_bins=16, orient=9,
+                     pix_per_cell=8, cell_per_block=2, hog_channel='ALL',
                      spatial_feat=True, hist_feat=True, hog_feat=True):
-    # Create a list to append feature vectors to
     features = []
-    # Iterate through the list of images
     for file in imgs:
-        file_features = []
-        # Read in each one by one
         image = cv2.imread(file)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        # apply color conversion if other than 'RGB'
-        if color_space != 'RGB':
-            if color_space == 'HSV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-            elif color_space == 'LUV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2LUV)
-            elif color_space == 'HLS':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
-            elif color_space == 'YUV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
-            elif color_space == 'YCrCb':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
-        else:
-            feature_image = np.copy(image)
-
-        if spatial_feat:
-            spatial_features = bin_spatial(feature_image, size=spatial_size)
-            file_features.append(spatial_features)
-        if hist_feat:
-            # Apply color_hist()
-            hist_features = color_hist(feature_image, nbins=hist_bins)
-            file_features.append(hist_features)
-        if hog_feat:
-            # Call get_hog_features() with vis=False, feature_vec=True
-            if hog_channel == 'ALL':
-                hog_features = []
-                for channel in range(feature_image.shape[2]):
-                    hog_features.append(get_hog_features(feature_image[:, :, channel],
-                                                         orient, pix_per_cell, cell_per_block,
-                                                         vis=False, feature_vec=True))
-                hog_features = np.ravel(hog_features)
-            else:
-                hog_features = get_hog_features(feature_image[..., hog_channel], orient,
-                                                pix_per_cell, cell_per_block, vis=False, feature_vec=True)
-            # Append the new feature vector to the features list
-            file_features.append(hog_features)
-        features.append(np.concatenate(file_features))
-    # Return list of feature vectors
+        features.append(
+            single_img_features(image,
+                                color_space,
+                                spatial_size,
+                                hist_bins,
+                                orient,
+                                pix_per_cell,
+                                cell_per_block,
+                                hog_channel,
+                                spatial_feat,
+                                hist_feat,
+                                hog_feat))
     return features
 
 
@@ -173,7 +131,7 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
 # start and stop positions in both x and y,
 # window size (x and y dimensions),
 # and overlap fraction (for both x and y)
-def slide_window(img, x_start_stop=(400, 0), y_start_stop=(650, 1280),
+def slide_window(x_start_stop=(0, 1280), y_start_stop=(400, 650),
                  xy_window=(64, 64), xy_overlap=(0.5, 0.5)):
     # Compute the span of the region to be searched
     xspan = x_start_stop[1] - x_start_stop[0]
@@ -195,9 +153,33 @@ def slide_window(img, x_start_stop=(400, 0), y_start_stop=(650, 1280),
             endy = starty + xy_window[1]
 
             # Append window position to list
-            window_list.append(((startx, starty), (endx, endy)))
+            window_list.append(((startx, endx), (starty, endy)))
     # Return the list of windows
     return window_list
+
+
+def get_windows():
+    big_windows = slide_window(
+        x_start_stop=(0, 1280),
+        y_start_stop=(400, 650),
+        xy_window=(150, 150),
+        xy_overlap=(0.8, 0.8))
+    med_windows = slide_window(
+        x_start_stop=(0, 1280),
+        y_start_stop=(400, 650),
+        xy_window=(100, 100),
+        xy_overlap=(0.65, 0.65))
+    sml_windows = slide_window(
+        x_start_stop=(0, 1280),
+        y_start_stop=(400, 550),
+        xy_window=(50, 50),
+        xy_overlap=(0.5, 0.5))
+    tny_windows = slide_window(
+        x_start_stop=(0, 1280),
+        y_start_stop=(400, 500),
+        xy_window=(35, 35),
+        xy_overlap=(0.5, 0.5))
+    return big_windows + med_windows + sml_windows + tny_windows
 
 
 # Define a function to draw bounding boxes
