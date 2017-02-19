@@ -1,11 +1,12 @@
 import numpy as np
 import glob
 import os
-import cv2
+import pickle
 from sklearn.model_selection import train_test_split
 from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler
 
-from VehicleDetection.processing import load_image
+from VehicleDetection.processing import extract_features
 
 
 def load_data():
@@ -26,17 +27,19 @@ def load_data():
 
     for folder in vehicle_folders:
         for im_path in glob.glob(cwd + folder + '*.png'):
-            data['features'].append(load_image(im_path))
+            data['features'].append(im_path)
             data['labels'].append(1)
             data['v_cnt'] += 1
 
     for folder in non_vehicle_folders:
         for im_path in glob.glob(cwd + folder + '*.png'):
-            data['features'].append(load_image(im_path))
+            data['features'].append(im_path)
             data['labels'].append(0)
             data['nv_cnt'] += 1
 
-    data['features'] = np.array(data['features'])
+    data['features'] = extract_features(data['features'])
+    X_scaler = StandardScaler().fit(data['features'])
+    data['features'] = X_scaler.transform(data['features'])
     data['labels'] = np.array(data['labels'])
     return data
 
@@ -62,4 +65,7 @@ def train():
     model.fit(X_train, y_train)
 
     print('Model accuracy: %0.4f' % model.score(X_test, y_test))
+
+    with open('VehicleDetection\\model.p', 'wb') as f:
+        pickle.dump(model, f)
     return model
