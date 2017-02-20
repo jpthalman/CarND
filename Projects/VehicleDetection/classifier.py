@@ -2,25 +2,26 @@ import numpy as np
 import glob
 import os
 import pickle
-from sklearn.model_selection import train_test_split
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 
 from VehicleDetection.processing import extract_features
 
 
 def load_data():
-    cwd = os.getcwd() + '\\VehicleDetection\\Data\\'
+    cwd = os.getcwd() + '/VehicleDetection/Data/'
     vehicle_folders = [
-        'vehicles\\GTI_Far\\',
-        'vehicles\\GTI_Left\\',
-        'vehicles\\GTI_MiddleClose\\',
-        'vehicles\\GTI_Right\\',
-        'vehicles\\KITTI_extracted\\'
+        'vehicles/GTI_Far/',
+        'vehicles/GTI_Left/',
+        'vehicles/GTI_MiddleClose/',
+        'vehicles/GTI_Right/',
+        'vehicles/KITTI_extracted/'
       ]
     non_vehicle_folders = [
-        'non-vehicles\\Extras\\',
-        'non-vehicles\\GTI\\'
+        'non-vehicles/Extras/',
+        'non-vehicles/GTI/'
       ]
 
     data = {'features': [], 'labels': [], 'v_cnt': 0, 'nv_cnt': 0}
@@ -45,9 +46,7 @@ def load_data():
 
 
 def shuffle_and_split(data):
-    features = data['features']
-    labels = data['labels']
-
+    features, labels = shuffle(data['features'], data['labels'])
     X_train, X_test, y_train, y_test = train_test_split(features, labels)
     return X_train, X_test, y_train, y_test
 
@@ -66,6 +65,6 @@ def train():
 
     print('Model accuracy: %0.4f' % model.score(X_test, y_test))
 
-    with open('VehicleDetection\\model.p', 'wb') as f:
+    with open('VehicleDetection/model.p', 'wb') as f:
         pickle.dump(model, f)
     return model
