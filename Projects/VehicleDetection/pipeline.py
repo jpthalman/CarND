@@ -10,27 +10,32 @@ from VehicleDetection.processing import single_img_features, get_windows
 
 
 class CarDetector(object):
-    def __init__(self, model, im_size, frame_memory):
+    def __init__(self, model, im_size, frame_memory, threshold):
         self.model = model
         self.im_size = im_size
+        self.threshold = threshold
         self.windows = get_windows()
         self.frame_memory = frame_memory
         self.frame_buffer = []
 
+        self.debug = None
+
     def find_cars(self, im):
-        heatmap = np.zeros_like(im)
+        heatmap = np.zeros_like(im[..., 0])
+        features = []
 
         for w_coords in self.windows:
             roi = self._extract_window(im, w_coords)
             roi = cv2.resize(roi, self.im_size)
-            features = single_img_features(roi)
-            features = features.reshape(1, -1)
+            features.append(single_img_features(roi))
 
-            X_scaler = StandardScaler().fit(features)
-            features = X_scaler.transform(features)
+        X_scaler = StandardScaler().fit(features)
+        features = X_scaler.transform(features)
+        self.debug = features
 
-            if self.model.predict(features)[0]:
-                heatmap = self._add_heat(heatmap, w_coords)
+        for feat, coords in zip(features, self.windows):
+            if self.model.predict(feat.reshape(1, -1))[0]:
+                heatmap = self._add_heat(heatmap, coords)
 
         self._add_to_buffer(heatmap)
         return self.get_heatmap_from_buffer()
@@ -45,7 +50,7 @@ class CarDetector(object):
         heatmap_sum = np.zeros_like(self.frame_buffer[0])
         for heatmap in self.frame_buffer:
             heatmap_sum = np.add(heatmap_sum, heatmap)
-        heatmap_sum[heatmap_sum < 2] = 0
+        heatmap_sum[heatmap_sum < self.threshold] = 0
         return heatmap_sum
 
     @staticmethod
@@ -62,18 +67,18 @@ class CarDetector(object):
         return heatmap
 
 
-if __name__ == 'builtins':
-    test_path = os.getcwd() + '\\VehicleDetection\\test_images\\test1.jpg'
+if __name__ == '__main__':
+    test_path = os.getcwd() + '/VehicleDetection/test_images/test1.jpg'
 
-    if os.path.exists('model.p'):
-        with open('VehicleDetection\\model.p', 'rb') as f:
+    if os.path.exists('VehicleDetection/model.p'):
+        with open('VehicleDetection/model.p', 'rb') as f:
             model = pickle.load(f)
     else:
         model = classifier.train()
 
     im = cv2.imread(test_path)
-    im = im[0:100, 0:100, :]
-    im = single_img_features(im)
+    im = im[620:720, 0:100, :]
+    im = cv2.resize(im, (64, 64))
     features = single_img_features(im)
     features = features.reshape(1, -1)
 
@@ -81,7 +86,8 @@ if __name__ == 'builtins':
     features = X_scaler.transform(features)
     print(model.predict(features))
 
-    detector = CarDetector(model, (64, 64), 5)
+    im = cv2.imread(test_path)
+    detector = CarDetector(model, (64, 64), 5, 75)
     for _ in range(5):
         heatmap = detector.find_cars(im)
     plt.imshow(heatmap, cmap='gray')
