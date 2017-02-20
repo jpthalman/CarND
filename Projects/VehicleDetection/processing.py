@@ -32,7 +32,7 @@ def get_hog_features(img, orient, pix_per_cell, cell_per_block,
 
 
 # Define a function to compute binned color features
-def bin_spatial(img, size=(32, 32)):
+def bin_spatial(img, size=(16, 16)):
     # Use cv2.resize().ravel() to create the feature vector
     features = cv2.resize(img, size).ravel()
     # Return the feature vector
@@ -174,12 +174,7 @@ def get_windows():
         y_start_stop=(400, 550),
         xy_window=(50, 50),
         xy_overlap=(0.5, 0.5))
-    tny_windows = slide_window(
-        x_start_stop=(0, 1280),
-        y_start_stop=(400, 500),
-        xy_window=(35, 35),
-        xy_overlap=(0.5, 0.5))
-    return big_windows + med_windows + sml_windows + tny_windows
+    return big_windows + med_windows + sml_windows
 
 
 # Define a function to draw bounding boxes
