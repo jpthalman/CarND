@@ -28,6 +28,12 @@ python visualize.py --json model.json
                     --dir /home/user/projects/  (defaults to the current working directory)
                     --draw-ground-truth
 
+### IMPORTANT ###
+When choosing the layer to visualize, it is recommended to choose the POST-ACTIVATION layer.
+If your activation function is not included in your convolutional layer, choose the output
+of your activation layer. If this is not ideal for some reason, give it a shot, but it might
+come out weird (I haven't tested it).
+
 ARGUMENTS
 ---------
 
