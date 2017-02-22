@@ -139,7 +139,7 @@ class VisualizeActivations(object):
         # Add a `batch` dimension of 1, because there is one image.
         processed = np.expand_dims(processed, 0)
 
-        _, w, h = im.shape[:3]
+        _, h, w = im.shape[:3]
 
         # Defines a function in Keras to grab the gradients from the model layer for the heatmap.
         # This is an expensive process, so only do it for the first frame and then reuse for
@@ -178,13 +178,13 @@ class VisualizeActivations(object):
         if draw_pred:
             xshift = int(line_len * np.cos(np.deg2rad(90 + 25*angle)))
             yshift = int(line_len * np.sin(np.deg2rad(90 + 25*angle)))
-            output = cv2.line(output, (h//2, w), (h//2 - xshift, w - yshift), color=(0, 0, 255), thickness=line_thk)
+            output = cv2.line(output, (w//2, h), (w//2 - xshift, h - yshift), color=(0, 0, 255), thickness=line_thk)
         if draw_ground_truth:
             if ground_truth is None:
                 raise ValueError('Ground truth steering angle cannot be None.')
             xshift = int(line_len * np.cos(np.deg2rad(90 + 25*ground_truth)))
             yshift = int(line_len * np.sin(np.deg2rad(90 + 25*ground_truth)))
-            output = cv2.line(output, (h//2, w), (h//2 - xshift, w - yshift), color=(0, 255, 0), thickness=line_thk)
+            output = cv2.line(output, (w//2, h), (w//2 - xshift, h - yshift), color=(0, 255, 0), thickness=line_thk)
         return output
 
     def _grad_cam_loss(self, gradients, angle, threshold=0.2):
