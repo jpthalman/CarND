@@ -182,14 +182,14 @@ class VisualizeActivations(object):
         output = cv2.addWeighted(rgb, 1, heatmap, 0.4, 0)
 
         if draw_pred:
-            xshift = int(line_len * np.cos(np.deg2rad(90 + 25*angle)))
-            yshift = int(line_len * np.sin(np.deg2rad(90 + 25*angle)))
+            xshift = int(line_len * np.sin(np.deg2rad(90 + 25*angle)))
+            yshift = int(line_len * np.cos(np.deg2rad(90 + 25*angle)))
             output = cv2.line(output, (w//2, h), (w//2 - xshift, h - yshift), color=(0, 0, 255), thickness=line_thk)
         if draw_ground_truth:
             if ground_truth is None:
                 raise ValueError('Ground truth steering angle cannot be None.')
-            xshift = int(line_len * np.cos(np.deg2rad(90 + 25*ground_truth)))
-            yshift = int(line_len * np.sin(np.deg2rad(90 + 25*ground_truth)))
+            xshift = int(line_len * np.sin(np.deg2rad(90 + 25*ground_truth)))
+            yshift = int(line_len * np.cos(np.deg2rad(90 + 25*ground_truth)))
             output = cv2.line(output, (w//2, h), (w//2 - xshift, h - yshift), color=(0, 255, 0), thickness=line_thk)
         return output
 
