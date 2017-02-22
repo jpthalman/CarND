@@ -22,14 +22,21 @@ class VisualizeActivations(object):
                  rectifier,
                  epsilon=1e-7):
         """
-        This class grabs the activations from a given layer of a ConvNet, averages the activations to form a single heatmap,
-        resizes the heatmap to the same size as the original image, and overlays it over the original image to show which
-        regions were most interesting to the model.
+        This class grabs the activations from a given layer of a ConvNet, averages the relevant activations
+        to form a single heatmap, resizes the heatmap to the same size as the original image, and
+        overlays it over the original image to show which regions were most interesting to the model.
 
-        :param model: The trained ConvNet model.
+        This class is attempting to replicate the methods outlined in the below blog post and paper, which
+        go into much greater detail about the methodology:
+
+            - Blog: https://jacobgil.github.io/deeplearning/vehicle-steering-angle-visualizations
+            - Paper: https://arxiv.org/pdf/1610.02391v1.pdf
+
+        :param model: The trained Keras ConvNet model.
         :param preprocessor: The function used by the model to preprocess any images
-        :param rectifier: A function to transform the heatmap back to the original image space that the model is looking
-            at. Really only necessary if there is any cropping or warping involved in the preprocessor.
+        :param rectifier: A function to transform the heatmap back to the original image space that
+            the model is looking at. Really only significant if there is any cropping or warping
+            involved in the preprocessor.
         :param epsilon: Numerical stability constant.
         """
         self.model = model
@@ -76,9 +83,18 @@ class VisualizeActivations(object):
 
         w, h = im.shape[:2]
 
+        # Defines a function in Keras to grab the gradients from the model layer for the heatmap.
         if self._gradients_function is None:
-            self._set_gradient_function(layer_name)
+            pred_angle = K.sum(self.model.layers[-1].output)
+            layer = self._layer_dict[layer_name]
+            grads = K.gradients(pred_angle, layer.output)[0]
 
+            self._gradients_function = K.function(
+                [self.model.layers[0].input],
+                [self.model.output, grads, pred_angle])
+
+        # Get the activations of the model at the requested layer, the gradients at the requested
+        # layer, and the predicted angle of the network.
         conv_outputs, grads_val, angle = self._gradients_function([processed])
         conv_outputs, grads_val = conv_outputs[0, ...], grads_val[0, ...]
 
@@ -109,23 +125,6 @@ class VisualizeActivations(object):
             yshift = int(line_len * np.sin(np.deg2rad(90 + 25*ground_truth)))
             output = cv2.line(output, (h//2, w), (h//2 - xshift, w - yshift), color=(0, 255, 0), thickness=line_thk)
         return output
-
-    def _set_gradient_function(self, layer_name):
-        """
-        Defines a function in Keras to grab the gradients from the defined layer for the heatmap.
-
-        :param layer_name: The name of the layer to extract
-        :return: None
-        """
-        pred_angle = K.sum(self.model.layers[-1].output)
-        layer = self._layer_dict[layer_name]
-        grads = K.gradients(pred_angle, layer.output)[0]
-
-        self.gradients_function = K.function(
-            [self.model.layers[0].input],
-            [self.model.output, grads, pred_angle]
-          )
-        return
 
     def _grad_cam_loss(self, x, angle):
         """
