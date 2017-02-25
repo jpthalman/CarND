@@ -1,5 +1,6 @@
 import numpy as np
 import glob
+import time
 import os
 import pickle
 from sklearn.svm import LinearSVC
@@ -39,8 +40,8 @@ def load_data():
             data['nv_cnt'] += 1
 
     data['features'] = extract_features(data['features'])
-    X_scaler = StandardScaler().fit(data['features'])
-    data['features'] = X_scaler.transform(data['features'])
+    data['scaler'] = StandardScaler().fit(data['features'])
+    data['features'] = data['scaler'].transform(data['features'])
     data['labels'] = np.array(data['labels'])
     return data
 
@@ -52,8 +53,15 @@ def shuffle_and_split(data):
 
 
 def train():
+    print('Loading the data...')
+    t = time.clock()
+
     data = load_data()
-    print('Loaded %d car images and %d non-car images.' % (data['v_cnt'], data['nv_cnt']))
+    X_scaler = data['scaler']
+
+    t = abs(time.clock() - t)
+    print('Loaded %d car images and %d non-car images in %d seconds.'
+          % (data['v_cnt'], data['nv_cnt'], t))
 
     X_train, X_test, y_train, y_test = shuffle_and_split(data)
     print('Split the data into %d training and %d testing examples.' % (y_train.shape[0], y_test.shape[0]))
@@ -61,10 +69,14 @@ def train():
 
     model = LinearSVC()
     print('Training the model...')
-    model.fit(X_train, y_train)
 
+    t = time.clock()
+    model.fit(X_train, y_train)
+    t = abs(time.clock() - t)
+
+    print('Model trained in %d seconds.' % t)
     print('Model accuracy: %0.4f' % model.score(X_test, y_test))
 
     with open('VehicleDetection/model.p', 'wb') as f:
-        pickle.dump(model, f)
-    return model
+        pickle.dump([model, X_scaler], f)
+    return model, X_scaler
