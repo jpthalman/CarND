@@ -52,8 +52,8 @@ def color_hist(img, nbins=32, bins_range=(0, 256)):
     return hist_features
 
 
-def single_img_features(img, color_space='HSV', spatial_size=(16, 16),
-                        hist_bins=16, orient=9,
+def single_img_features(img, color_space='YCrCb', spatial_size=(32, 32),
+                        hist_bins=32, orient=9,
                         pix_per_cell=8, cell_per_block=2, hog_channel='ALL',
                         spatial_feat=True, hist_feat=True, hog_feat=True):
     # 1) Define an empty list to receive features
@@ -69,6 +69,8 @@ def single_img_features(img, color_space='HSV', spatial_size=(16, 16),
             feature_image = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
         elif color_space == 'YUV':
             feature_image = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+        elif color_space == 'YCrCb':
+            feature_image = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
     else:
         feature_image = np.copy(img)
 
@@ -105,76 +107,56 @@ def single_img_features(img, color_space='HSV', spatial_size=(16, 16),
     return np.concatenate(img_features)
 
 
-def extract_features(imgs, color_space='HSV', spatial_size=(16, 16),
-                     hist_bins=16, orient=9,
-                     pix_per_cell=8, cell_per_block=2, hog_channel='ALL',
-                     spatial_feat=True, hist_feat=True, hog_feat=True):
+def extract_features(imgs):
     features = []
     for file in imgs:
         image = cv2.imread(file)
-        features.append(
-            single_img_features(image,
-                                color_space,
-                                spatial_size,
-                                hist_bins,
-                                orient,
-                                pix_per_cell,
-                                cell_per_block,
-                                hog_channel,
-                                spatial_feat,
-                                hist_feat,
-                                hog_feat))
+        features.append(single_img_features(image))
     return features
 
 
-# Define a function that takes an image,
-# start and stop positions in both x and y,
-# window size (x and y dimensions),
-# and overlap fraction (for both x and y)
-def slide_window(x_start_stop=(0, 1280), y_start_stop=(400, 650),
-                 xy_window=(64, 64), xy_overlap=(0.5, 0.5)):
+def get_windows(x_start_stop=(0, 1280), y_start_stop=(400, 650)):
+    windows_a = slide_window_helper(x_start_stop, y_start_stop, window_size=[125, 100])
+    windows_b = slide_window_helper(x_start_stop, y_start_stop, window_size=[90, 75])
+    windows_c = slide_window_helper(x_start_stop, y_start_stop, window_size=[64, 48])
+    return windows_a + windows_b + windows_c
+
+
+def slide_window_helper(x_start_stop=(None, None), y_start_stop=(None, None), window_size=(96, 64)):
+    window_size_x = window_size[0]
+    window_size_y = window_size[1]
+    xy_overlap = (0.5, 0.5)
+
     # Compute the span of the region to be searched
     xspan = x_start_stop[1] - x_start_stop[0]
     yspan = y_start_stop[1] - y_start_stop[0]
     # Compute the number of pixels per step in x/y
-    nx_pix_per_step = np.int(xy_window[0] * (1 - xy_overlap[0]))
-    ny_pix_per_step = np.int(xy_window[1] * (1 - xy_overlap[1]))
+    nx_pix_per_step = np.int(window_size_x * (1 - xy_overlap[0]))
+    ny_pix_per_step = np.int(window_size_y * (1 - xy_overlap[1]))
     # Compute the number of windows in x/y
-    nx_windows = np.int(xspan / nx_pix_per_step) - 1
-    ny_windows = np.int(yspan / ny_pix_per_step) - 1
+    nx_windows = np.int(xspan / nx_pix_per_step) - 2
+    ny_windows = np.int(yspan / ny_pix_per_step) - 2
     # Initialize a list to append window positions to
     window_list = []
-    for ys in range(ny_windows):
-        for xs in range(nx_windows):
+
+    ys = y_start_stop[0]
+    while ys + window_size_y < y_start_stop[1]:
+        xs = x_start_stop[0]
+        while xs < x_start_stop[1]:
             # Calculate window position
-            startx = xs * nx_pix_per_step + x_start_stop[0]
-            endx = startx + xy_window[0]
-            starty = ys * ny_pix_per_step + y_start_stop[0]
-            endy = starty + xy_window[1]
+            endx = xs + window_size_x
+            endy = ys + window_size_y
 
             # Append window position to list
-            window_list.append(((startx, endx), (starty, endy)))
-    # Return the list of windows
+            window_list.append(((xs, ys), (endx, endy)))
+
+            xs += nx_pix_per_step
+        window_size_x = int(window_size_x * 1.3)
+        window_size_y = int(window_size_y * 1.3)
+        nx_pix_per_step = np.int(window_size_x * (1 - xy_overlap[0]))
+        ny_pix_per_step = np.int(window_size_y * (1 - xy_overlap[1]))
+        ys += ny_pix_per_step
     return window_list
-
-
-def get_windows():
-    big_windows = slide_window(
-        x_start_stop=(0, 1280),
-        y_start_stop=(400, 650),
-        xy_window=(150, 150),
-        xy_overlap=(0.8, 0.8))
-    med_windows = slide_window(
-        x_start_stop=(0, 1280),
-        y_start_stop=(400, 650),
-        xy_window=(100, 100),
-        xy_overlap=(0.65, 0.65))
-    sml_windows = slide_window(
-        x_start_stop=(0, 1280),
-        y_start_stop=(400, 550),
-        xy_window=(50, 50),
-        xy_overlap=(0.5, 0.5))
-    return big_windows + med_windows + sml_windows
 
 
 # Define a function to draw bounding boxes
