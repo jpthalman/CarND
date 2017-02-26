@@ -4,10 +4,10 @@ import os
 import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
 
-from processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
+from AdvLaneLines.processing import calibrate_camera, undistort_img, colorspace_threshold, gradient_threshold, \
                        transform_perspective, sliding_window, get_return_values, predict_from_margin_around_prev_fit, \
                        gaussian_blur, n_bitwise_or
-from checks import roughly_parallel, similar_curvature, not_same_line
+from AdvLaneLines.checks import roughly_parallel, similar_curvature, not_same_line
 
 
 class LaneFinder(object):
