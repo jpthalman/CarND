@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage.measurements import label
+from moviepy.editor import VideoFileClip
 
 import VehicleDetection.classifier as classifier
 from VehicleDetection.processing import single_img_features, get_windows, draw_boxes
@@ -67,18 +68,19 @@ class CarDetector(object):
 
     @staticmethod
     def _draw_labeled_bounding_boxes(im, labels):
+        cpy = np.copy(im)
         for car_number in range(1, labels[1]+1):
             nonzero = (labels[0] == car_number).nonzero()
             nonzero_y = np.array(nonzero[0])
             nonzero_x = np.array(nonzero[1])
 
             bbox = ((np.min(nonzero_x), np.min(nonzero_y)), (np.max(nonzero_x), np.max(nonzero_y)))
-            cv2.rectangle(im, bbox[0], bbox[1], (0, 0, 255), 6)
-        return im
+            cv2.rectangle(cpy, bbox[0], bbox[1], (0, 0, 255), 6)
+        return cpy
 
 
 if __name__ == 'builtins':
-    test_path = os.getcwd() + '/VehicleDetection/test_images/test6.jpg'
+    test_path = os.getcwd() + '/VehicleDetection/test_images/test4.jpg'
 
     if os.path.exists('VehicleDetection/model.p'):
         print('Loading the model from the pickled file...')
@@ -88,15 +90,18 @@ if __name__ == 'builtins':
     else:
         model, X_scaler = classifier.train()
 
-    # im = cv2.imread(test_path)
-    #
-    # windows = get_windows(y_start_stop=(400, 650))
-    # tmp = draw_boxes(cv2.cvtColor(im, cv2.COLOR_BGR2RGB), windows, thick=2)
-    # plt.imshow(tmp)
 
-    im = cv2.imread(test_path)
-    detector = CarDetector(model, X_scaler, (64, 64), 5, 3)
-    for _ in range(5):
-        out = detector.find_cars(im)
+    detector = CarDetector(
+        model=model,
+        scaler=X_scaler,
+        im_size=(64, 64),
+        frame_memory=5,
+        threshold=5)
 
-    cv2.imshow('', out)
+
+    infile = 'VehicleDetection/project_video.mp4'
+    outfile = 'VehicleDetection/project_video_output.mp4'
+
+    original = VideoFileClip(infile)
+    processed = original.fl_image(detector.find_cars)
+    processed.write_videofile(outfile, audio=False)
