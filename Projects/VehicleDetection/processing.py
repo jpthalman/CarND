@@ -116,9 +116,9 @@ def extract_features(imgs):
 
 
 def get_windows(x_start_stop=(0, 1280), y_start_stop=(400, 650)):
-    windows_a = slide_window_helper(x_start_stop, y_start_stop, window_size=[125, 100])
-    windows_b = slide_window_helper(x_start_stop, y_start_stop, window_size=[90, 75])
-    windows_c = slide_window_helper(x_start_stop, y_start_stop, window_size=[64, 48])
+    windows_a = slide_window_helper(x_start_stop, y_start_stop, window_size=[128, 128])
+    windows_b = slide_window_helper(x_start_stop, y_start_stop, window_size=[64, 64])
+    windows_c = slide_window_helper(x_start_stop, y_start_stop, window_size=[32, 32])
     return windows_a + windows_b + windows_c
 
 
