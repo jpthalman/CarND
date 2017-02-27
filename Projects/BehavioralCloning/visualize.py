@@ -74,6 +74,34 @@ from keras.models import model_from_json
 K.set_learning_phase(0)
 
 
+#######################################################################################
+#                                 MODIFY THESE FUNCTIONS                              #
+#######################################################################################
+
+def processor(im):
+    """
+    Takes in a raw image and performs every action necessary to feed it into your model.
+    """
+    im = im[50:135, :]
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    return cv2.resize(im, (64, 64))
+
+
+def rectifier(im):
+    """
+    Takes an image that was fed into your model and transforms it back into the original image space.
+    Note that if any cropping was performed, you should transform the image back into the cropped
+    space and pad the result with zeros to get back to the original shape.
+    """
+    resized = cv2.resize(im, (320, 85))
+    top_padding = np.zeros([50, 320])
+    bot_padding = np.zeros([25, 320])
+    output = np.concatenate((top_padding, resized, bot_padding))
+    return output
+
+#######################################################################################
+
+
 class VisualizeActivations(object):
     def __init__(self,
                  model,
@@ -266,7 +294,7 @@ class VisualizeActivations(object):
             gradients += self.epsilon
             # Use gradient values as inputs to N(0, sigma**2).
             # Has the effect of amplifying the values closer to zero.
-            # Sigma is calculated s.t. N(threshold)/N(0) = threshold
+            # Sigma is calculated s.t. N(threshold) / N(0) == threshold
             sigma = -(threshold**2) / np.log(threshold)
             return np.sign(angle) * np.exp(-gradients**2 / sigma) / np.sqrt(2*np.pi)
 
@@ -290,20 +318,6 @@ def load_data(path, file):
         'left': np.array([path + str(im).replace(' ', '').replace('\\', '/') for im in df['LeftImage'].as_matrix()])
       }
     return data
-
-
-def processor(im):
-    im = im[50:135, :]
-    im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
-    return cv2.resize(im, (64, 64))
-
-
-def rectifier(im):
-    resized = cv2.resize(im, (320, 85))
-    top_padding = np.zeros([50, 320])
-    bot_padding = np.zeros([25, 320])
-    output = np.concatenate((top_padding, resized, bot_padding))
-    return output
 
 
 if __name__ == '__main__':
