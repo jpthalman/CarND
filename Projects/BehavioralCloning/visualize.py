@@ -62,10 +62,9 @@ import os
 import sys
 import argparse
 import numpy as np
-import scipy
 import cv2
 import pandas as pd
-from moviepy.editor import ImageSequenceClip
+from moviepy.editor import ImageSequenceClip, VideoFileClip
 
 import keras.backend as K
 from keras.models import model_from_json
@@ -109,6 +108,53 @@ class VisualizeActivations(object):
 
         self._layer_dict = dict([(layer.name, layer) for layer in self.model.layers])
         self._gradients_function = None
+
+    def from_video(self,
+                   infile_path,
+                   outfile_path,
+                   layer_name,
+                   threshold=0.2,
+                   draw_pred=True,
+                   draw_ground_truth=False,
+                   ground_truth=None,
+                   line_len=50,
+                   line_thk=2):
+        """
+        Creates a heatmap from the relevant activations of the given layer in a ConvNet, overlays it over the each frame
+        of the given video, and optionally draws the real and predicted steering angles onto the image.
+
+        Note that if the steering angles are drawn onto the image, the predicted angle will be BLUE and the ground truth
+        angle will be GREEN.
+
+        :param infile_path: Path to the video file. Must be a MP4.
+        :param outfile_path: Path to save the processed video to.
+        :param layer_name: The name of the layer in the Keras ConvNet to visualize.
+        :param threshold: Value in [0.0, 1.0). Will remove any activation below this threshold from the heatmap.
+        :param draw_pred: Boolean. Whether or not to draw the predicted steering angle onto the image
+        :param draw_ground_truth: Boolean. Whether or not to draw the ground truth angle onto the image.
+        :param ground_truth: Pass the ground truth angle in here if you would like it to be drawn.
+        :param line_len: Length (in pixels) of the steering angle lines to draw.
+        :param line_thk: Thickness of the steering angle lines to draw.
+        :return: Annotated video.
+        """
+        original = VideoFileClip(infile_path)
+
+        frames = []
+        for frame in original.iter_frames():
+            frames.append(self.heat_map(
+                layer_name=layer_name,
+                img_path=frame,
+                threshold=threshold,
+                draw_pred=draw_pred,
+                draw_ground_truth=draw_ground_truth,
+                ground_truth=ground_truth,
+                line_len=line_len,
+                line_thk=line_thk
+            ))
+
+        processed = ImageSequenceClip(frames, fps=original.fps)
+        processed.write_videofile(outfile_path)
+        return
 
     def heat_map(self,
                  layer_name,
