@@ -129,7 +129,7 @@ class VisualizeActivations(object):
         :param infile_path: Path to the video file. Must be a MP4.
         :param outfile_path: Path to save the processed video to.
         :param layer_name: The name of the layer in the Keras ConvNet to visualize.
-        :param threshold: Value in [0.0, 1.0). Will remove any activation below this threshold from the heatmap.
+        :param threshold: Value in (0.0, 1.0). Will remove any activation below this threshold from the heatmap.
         :param draw_pred: Boolean. Whether or not to draw the predicted steering angle onto the image
         :param draw_ground_truth: Boolean. Whether or not to draw the ground truth angle onto the image.
         :param ground_truth: Pass the ground truth angle in here if you would like it to be drawn.
@@ -137,6 +137,9 @@ class VisualizeActivations(object):
         :param line_thk: Thickness of the steering angle lines to draw.
         :return: Annotated video.
         """
+        if threshold == 0:
+            raise ValueError('Threshold must be above zero.')
+
         original = VideoFileClip(infile_path)
 
         frames = []
@@ -182,6 +185,9 @@ class VisualizeActivations(object):
         :param line_thk: Thickness of the steering angle lines to draw.
         :return: Annotated image.
         """
+        if threshold == 0:
+            raise ValueError('Threshold must be above zero.')
+
         if os.path.exists(img_path):
             im = cv2.imread(img_path)
         else:
@@ -211,11 +217,12 @@ class VisualizeActivations(object):
         conv_outputs, grads_val = conv_outputs[0, ...], grads_val[0, ...]
 
         # Amplify the gradients that are relevant to the predicted steering angle.
-        class_weights = self._grad_cam_loss(grads_val, angle)
+        class_weights = self._grad_cam_loss(grads_val, angle, threshold)
 
         # Create the class activation map
         cam = np.mean(class_weights*conv_outputs, axis=2)
-        cam /= np.max(cam)
+        # Normalize to [0, 1]
+        cam = (cam - np.min(cam)) / (np.max(cam) - np.min(cam))
 
         # Transform activation map back into original image space
         cam = self.rectifier(cam)
@@ -239,7 +246,7 @@ class VisualizeActivations(object):
             output = cv2.line(output, (w//2, h), (w//2 - xshift, h - yshift), color=(0, 255, 0), thickness=line_thk)
         return output
 
-    def _grad_cam_loss(self, gradients, angle, threshold=0.2):
+    def _grad_cam_loss(self, gradients, angle, threshold):
         """
         If the predicted angle is positive, amplify the positive gradients. If the predicted angle is negative, amplify
         the negative gradients. If the predicted angle is close to zero, amplify the gradients which are close to zero.
@@ -255,8 +262,13 @@ class VisualizeActivations(object):
         elif angle < -threshold:
             return -gradients
         else:
+            # Add numerical stability constant
             gradients += self.epsilon
-            return (1.0 / gradients) * np.sign(angle)
+            # Use gradient values as inputs to N(0, sigma**2).
+            # Has the effect of amplifying the values closer to zero.
+            # Sigma is calculated s.t. N(threshold)/N(0) = threshold
+            sigma = -(threshold**2) / np.log(threshold)
+            return np.sign(angle) * np.exp(-gradients**2 / sigma) / np.sqrt(2*np.pi)
 
 
 def load_data(path, file):
