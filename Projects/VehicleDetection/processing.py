@@ -3,11 +3,12 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import sklearn
+import pdb
 from skimage.feature import hog
 
 
 # Define a function to return HOG features and visualization
-def get_hog_features(img, orient, pix_per_cell, cell_per_block,
+def get_hog_features(img, orient=9, pix_per_cell=8, cell_per_block=2,
                      vis=False, feature_vec=True):
     # Call with two outputs if vis==True
     if vis:
@@ -41,21 +42,29 @@ def bin_spatial(img, size=(16, 16)):
 
 # Define a function to compute color histogram features
 # NEED TO CHANGE bins_range if reading .png files with mpimg!
-def color_hist(img, nbins=32, bins_range=(0, 256)):
+def color_hist(img, nbins=32):
     # Compute the histogram of the color channels separately
-    channel1_hist = np.histogram(img[:, :, 0], bins=nbins, range=bins_range)
-    channel2_hist = np.histogram(img[:, :, 1], bins=nbins, range=bins_range)
-    channel3_hist = np.histogram(img[:, :, 2], bins=nbins, range=bins_range)
+    channel1_hist = np.histogram(img[:, :, 0], bins=nbins)
+    channel2_hist = np.histogram(img[:, :, 1], bins=nbins)
+    channel3_hist = np.histogram(img[:, :, 2], bins=nbins)
     # Concatenate the histograms into a single feature vector
     hist_features = np.concatenate((channel1_hist[0], channel2_hist[0], channel3_hist[0]))
     # Return the individual histograms, bin_centers and feature vector
     return hist_features
 
 
-def single_img_features(img, color_space='YCrCb', spatial_size=(32, 32),
-                        hist_bins=32, orient=9,
-                        pix_per_cell=8, cell_per_block=2, hog_channel='ALL',
-                        spatial_feat=True, hist_feat=True, hog_feat=True):
+def single_img_features(img,
+                        hog_img=None,
+                        color_space='YCrCb',
+                        spatial_size=(32, 32),
+                        hist_bins=32,
+                        orient=9,
+                        pix_per_cell=8,
+                        cell_per_block=2,
+                        hog_channel='ALL',
+                        spatial_feat=True,
+                        hist_feat=True,
+                        hog_feat=True):
     # 1) Define an empty list to receive features
     img_features = []
 
@@ -86,7 +95,11 @@ def single_img_features(img, color_space='YCrCb', spatial_size=(32, 32),
         img_features.append(hist_features)
     # 7) Compute HOG features if flag is set
     if hog_feat:
-        if hog_channel == 'ALL':
+        if hog_img is not None:
+            hog_features = []
+            for channel in range(hog_img.shape[2]):
+                hog_features.extend(hog_img[..., channel].ravel())
+        elif hog_channel == 'ALL':
             hog_features = []
             for channel in range(feature_image.shape[2]):
                 hog_features.extend(get_hog_features(feature_image[..., channel],
@@ -111,6 +124,7 @@ def extract_features(imgs):
     features = []
     for file in imgs:
         image = cv2.imread(file)
+        image = image.astype(np.float32) / 255
         features.append(single_img_features(image))
     return features
 
@@ -148,7 +162,7 @@ def slide_window_helper(x_start_stop=(None, None), y_start_stop=(None, None), wi
             endy = ys + window_size_y
 
             # Append window position to list
-            window_list.append(((xs, ys), (endx, endy)))
+            window_list.append(((xs, ys), (endx, endy), window_size))
 
             xs += nx_pix_per_step
         window_size_x = int(window_size_x * 1.3)
