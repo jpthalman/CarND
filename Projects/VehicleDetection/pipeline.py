@@ -1,4 +1,5 @@
 import os
+import pdb
 import pickle
 import cv2
 import numpy as np
@@ -7,33 +8,106 @@ from scipy.ndimage.measurements import label
 from moviepy.editor import VideoFileClip
 
 import VehicleDetection.classifier as classifier
-from VehicleDetection.processing import single_img_features, get_windows, draw_boxes
+from VehicleDetection.processing import bin_spatial, get_hog_features, color_hist
 
 
 class CarDetector(object):
-    def __init__(self, model, scaler, im_size, frame_memory, threshold):
+    def __init__(self,
+                 model,
+                 scaler,
+                 im_size,
+                 ystart,
+                 ystop,
+                 scale,
+                 orient,
+                 pix_per_cell,
+                 cell_per_block,
+                 spatial_size,
+                 hist_bins,
+                 frame_memory,
+                 threshold):
+        """"""
         self.model = model
         self.scaler = scaler
         self.im_size = im_size
+        self.ystart = ystart
+        self.ystop = ystop
+        self.scale = scale
+        self.orient = orient
+        self.pix_per_cell = pix_per_cell
+        self.cell_per_block = cell_per_block
+        self.spatial_size = spatial_size
+        self.hist_bins = hist_bins
         self.threshold = threshold
-        self.windows = get_windows(y_start_stop=(400, 650))
         self.frame_memory = frame_memory
         self.frame_buffer = []
 
-    def find_cars(self, im):
-        heatmap = np.zeros_like(im[..., 0])
-        features = []
+    def find_cars(self,
+                  im):
+        """"""
+        img = im.astype(np.float32) / 255
+        heatmap = np.zeros_like(img)
 
-        for w_coords in self.windows:
-            roi = self._extract_window(im, w_coords)
-            roi = cv2.resize(roi, self.im_size)
-            features.append(single_img_features(roi))
+        img_tosearch = img[self.ystart:self.ystop, ...]
+        ctrans_tosearch = cv2.cvtColor(img_tosearch, cv2.COLOR_RGB2YCrCb)
+        if self.scale != 1:
+            h, w, ch = ctrans_tosearch.shape
+            ctrans_tosearch = cv2.resize(ctrans_tosearch, (w // self.scale, h // self.scale))
 
-        features = self.scaler.transform(features)
+        ch1 = ctrans_tosearch[:, :, 0]
+        ch2 = ctrans_tosearch[:, :, 1]
+        ch3 = ctrans_tosearch[:, :, 2]
 
-        for feat, coords in zip(features, self.windows):
-            if self.model.predict(feat.reshape(1, -1))[0]:
-                heatmap = self._add_heat(heatmap, coords)
+        # Define blocks and steps as above
+        nxblocks = (ch1.shape[1] // self.pix_per_cell) - 1
+        nyblocks = (ch1.shape[0] // self.pix_per_cell) - 1
+        # 64 was the orginal sampling rate, with 8 cells and 8 pix per cell
+        window = 64
+        nblocks_per_window = (window // self.pix_per_cell) - 1
+        cells_per_step = 2  # Instead of overlap, define how many cells to step
+        nxsteps = (nxblocks - nblocks_per_window) // cells_per_step
+        nysteps = (nyblocks - nblocks_per_window) // cells_per_step
+
+        # Compute individual channel HOG features for the entire image
+        hog1 = get_hog_features(ch1, self.orient, self.pix_per_cell, self.cell_per_block, feature_vec=False)
+        hog2 = get_hog_features(ch2, self.orient, self.pix_per_cell, self.cell_per_block, feature_vec=False)
+        hog3 = get_hog_features(ch3, self.orient, self.pix_per_cell, self.cell_per_block, feature_vec=False)
+
+        for xb in range(nxsteps):
+            for yb in range(nysteps):
+                ypos = yb * cells_per_step
+                xpos = xb * cells_per_step
+                # Extract HOG for this patch
+                hog_feat1 = hog1[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel()
+                hog_feat2 = hog2[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel()
+                hog_feat3 = hog3[ypos:ypos + nblocks_per_window, xpos:xpos + nblocks_per_window].ravel()
+                hog_features = np.hstack((hog_feat1, hog_feat2, hog_feat3))
+
+                xleft = xpos * self.pix_per_cell
+                ytop = ypos * self.pix_per_cell
+
+                # Extract the image patch
+                subimg = cv2.resize(ctrans_tosearch[ytop:ytop + window, xleft:xleft + window], self.im_size)
+
+                # Get color features
+                spatial_features = bin_spatial(subimg, size=self.spatial_size)
+                hist_features = color_hist(subimg, nbins=self.hist_bins)
+
+                # Scale features and make a prediction
+                test_features = self.scaler.transform(np.hstack((
+                    spatial_features,
+                    hist_features,
+                    hog_features))).reshape(1, -1)
+                # test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))
+                test_prediction = self.model.predict(test_features)
+
+                if test_prediction == 1:
+                    xbox_left = np.int(xleft * self.scale)
+                    ytop_draw = np.int(ytop * self.scale)
+                    win_draw = np.int(window * self.scale)
+                    top_left = (xbox_left, ytop_draw + self.ystart)
+                    bottom_right = (xbox_left + win_draw, ytop_draw + win_draw + self.ystart)
+                    self._add_heat(heatmap, (top_left, bottom_right))
 
         self._add_to_buffer(heatmap)
         avg_heatmap = self._get_heatmap_from_buffer()
@@ -52,12 +126,6 @@ class CarDetector(object):
             heatmap_sum = np.add(heatmap_sum, heatmap)
         heatmap_sum[heatmap_sum < self.threshold] = 0
         return heatmap_sum
-
-    @staticmethod
-    def _extract_window(im, window):
-        xstart, ystart = window[0]
-        xend, yend = window[1]
-        return im[ystart:yend, xstart:xend, ...]
 
     @staticmethod
     def _add_heat(heatmap, window):
@@ -79,7 +147,7 @@ class CarDetector(object):
         return cpy
 
 
-if __name__ == 'builtins':
+if __name__ == '__main__':
     test_path = os.getcwd() + '/VehicleDetection/test_images/test4.jpg'
 
     if os.path.exists('VehicleDetection/model.p'):
@@ -90,14 +158,23 @@ if __name__ == 'builtins':
     else:
         model, X_scaler = classifier.train()
 
+    path = os.getcwd() + '/VehicleDetection/test_images/test1.jpg'
+    im = cv2.imread(path)
 
     detector = CarDetector(
         model=model,
         scaler=X_scaler,
         im_size=(64, 64),
+        ystart=400,
+        ystop=650,
+        scale=1,
+        orient=9,
+        pix_per_cell=8,
+        cell_per_block=2,
+        spatial_size=(32, 32),
+        hist_bins=32,
         frame_memory=5,
-        threshold=5)
-
+        threshold=1)
 
     infile = 'VehicleDetection/project_video.mp4'
     outfile = 'VehicleDetection/project_video_output.mp4'
