@@ -26,7 +26,24 @@ class CarDetector(object):
                  hist_bins,
                  frame_memory,
                  threshold):
-        """"""
+        """
+        This class is meant to take in an image, process it in a predefined way, and return the same image with
+        a bounding box around any cars in the image.
+
+        :param model: Pre-trained model to identify cars in a ROI.
+        :param scaler: Scaler used to normalize image data when training the model.
+        :param im_size: Size of image to feed the model.
+        :param ystart: Upper bound pixel on Y-axis to search for cars.
+        :param ystop: Lower bound pixel on Y-axis to search for cars.
+        :param scale: Factor by which to scale the search ROI. Should be 1.
+        :param orient: Number of gradient bins for HOG features
+        :param pix_per_cell: For HOG features
+        :param cell_per_block: For HOG features
+        :param spatial_size: Size transform tuple for the spatial features
+        :param hist_bins: Number of histogram bins for color_hist
+        :param frame_memory: Number of frames in the past to `remember`. Helps reduce false positives.
+        :param threshold: Remove all values less than this threshold from the heatmap. Helps reduce false positives.
+        """
         self.model = model
         self.scaler = scaler
         self.im_size = im_size
@@ -44,7 +61,16 @@ class CarDetector(object):
 
     def find_cars(self,
                   im):
-        """"""
+        """
+        Searches through the Y-range defined in the `init` using 64x64 blocks and steping 16 pixels at a time. Each
+        block is fed through the model, and if the model identifies a car in the block, heat is added to a heatmap in
+        that region. Once the heatmap has been constructed, it is added to the buffer, and averaged heatmap is
+        constructed, and class labels are assigned to the maximums of this heatmap. Using the class labeled mask,
+        bounding boxes are drawn around each class on the original image and this annotated image is returned.
+
+        :param im: Original image.
+        :return: Annotated image.
+        """
         img = im.astype(np.float32) / 255
         heatmap = np.zeros_like(img)
 
@@ -115,12 +141,19 @@ class CarDetector(object):
         return self._draw_labeled_bounding_boxes(im, labels)
 
     def _add_to_buffer(self, heat_map):
+        """
+        Adds a given heatmap to the heatmap buffer. If the buffer is currently the maximum length, remove the
+        oldest element and then add the given heatmap.
+        """
         if len(self.frame_buffer) == self.frame_memory:
             self.frame_buffer.pop(0)
         self.frame_buffer.append(heat_map)
         return
 
     def _get_heatmap_from_buffer(self):
+        """
+        Gets an averaged heatmap from every heatmap currently in the buffer.
+        """
         heatmap_sum = np.zeros_like(self.frame_buffer[0])
         for heatmap in self.frame_buffer:
             heatmap_sum = np.add(heatmap_sum, heatmap)
@@ -129,6 +162,12 @@ class CarDetector(object):
 
     @staticmethod
     def _add_heat(heatmap, window):
+        """
+        Adds `heat`, A.K.A. 1, to every pixel within a given window in a heatmap.
+
+        :param heatmap: Heatmap to add heat to
+        :param window: List containing the upper left and bottom right corners of the ROI to add heat to.
+        """
         xstart, ystart = window[0]
         xend, yend = window[1]
         heatmap[ystart:yend, xstart:xend, ...] += 1
@@ -136,6 +175,13 @@ class CarDetector(object):
 
     @staticmethod
     def _draw_labeled_bounding_boxes(im, labels):
+        """
+        Given a class labeled image mask, find the tightest bounding box around each class, draw these boxes onto the
+        original image, and return the annotated image.
+
+        :param im: Image to draw on
+        :param labels: Pixel-wise class labeled mask of the original image.
+        """
         cpy = np.copy(im)
         for car_number in range(1, labels[1]+1):
             nonzero = (labels[0] == car_number).nonzero()
@@ -148,19 +194,18 @@ class CarDetector(object):
 
 
 if __name__ == '__main__':
-    test_path = os.getcwd() + '/VehicleDetection/test_images/test4.jpg'
-
+    # Load the model from the pickle file if it exists, otherwise train it.
     if os.path.exists('VehicleDetection/model.p'):
         print('Loading the model from the pickled file...')
+
         with open('VehicleDetection/model.p', 'rb') as f:
             model, X_scaler = pickle.load(f)
+
         print('Done!')
     else:
         model, X_scaler = classifier.train()
 
-    path = os.getcwd() + '/VehicleDetection/test_images/test1.jpg'
-    im = cv2.imread(path)
-
+    # Instantiate the detector
     detector = CarDetector(
         model=model,
         scaler=X_scaler,
@@ -179,6 +224,7 @@ if __name__ == '__main__':
     infile = 'VehicleDetection/project_video.mp4'
     outfile = 'VehicleDetection/project_video_output.mp4'
 
+    # Load and process the video
     original = VideoFileClip(infile)
     processed = original.fl_image(detector.find_cars)
     processed.write_videofile(outfile, audio=False)
