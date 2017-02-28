@@ -59,6 +59,8 @@ ARGUMENTS
 
 
 import os
+import pdb
+import json
 import sys
 import argparse
 import numpy as np
@@ -82,7 +84,7 @@ def processor(im):
     """
     Takes in a raw image and performs every action necessary to feed it into your model.
     """
-    im = im[50:135, :]
+    im = im[40:135, :]
     im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
     return cv2.resize(im, (64, 64))
 
@@ -93,8 +95,8 @@ def rectifier(im):
     Note that if any cropping was performed, you should transform the image back into the cropped
     space and pad the result with zeros to get back to the original shape.
     """
-    resized = cv2.resize(im, (320, 85))
-    top_padding = np.zeros([50, 320])
+    resized = cv2.resize(im, (320, 95))
+    top_padding = np.zeros([40, 320])
     bot_padding = np.zeros([25, 320])
     output = np.concatenate((top_padding, resized, bot_padding))
     return output
@@ -190,12 +192,13 @@ class VisualizeActivations(object):
     def heat_map(self,
                  layer_name,
                  img_path,
-                 threshold=0.2,
+                 threshold=0.1,
                  draw_pred=True,
                  draw_ground_truth=False,
                  ground_truth=None,
                  line_len=50,
-                 line_thk=2):
+                 line_thk=2,
+                 adaptive_grads=False):
         """
         Creates a heatmap from the relevant activations of the given layer in a ConvNet, overlays it over the original
         image, and optionally draws the real and predicted steering angles onto the image.
@@ -221,11 +224,11 @@ class VisualizeActivations(object):
         else:
             raise ValueError('Image does not exist:\n%r' % img_path)
 
+        h, w = im.shape[:2]
+
         processed = self.preprocessor(im)
         # Add a `batch` dimension of 1, because there is one image.
         processed = np.expand_dims(processed, 0)
-
-        _, h, w = im.shape[:3]
 
         # Defines a function in Keras to grab the gradients from the model layer for the heatmap.
         # This is an expensive process, so only do it for the first frame and then reuse for
@@ -245,10 +248,11 @@ class VisualizeActivations(object):
         conv_outputs, grads_val = conv_outputs[0, ...], grads_val[0, ...]
 
         # Amplify the gradients that are relevant to the predicted steering angle.
-        class_weights = self._grad_cam_loss(grads_val, angle, threshold)
+        if adaptive_grads:
+            grads_val = self._grad_cam_loss(grads_val, angle, threshold)
 
         # Create the class activation map
-        cam = np.mean(class_weights*conv_outputs, axis=2)
+        cam = np.mean(grads_val*conv_outputs, axis=2)
         # Normalize to [0, 1]
         cam = (cam - np.min(cam)) / (np.max(cam) - np.min(cam))
 
@@ -256,22 +260,24 @@ class VisualizeActivations(object):
         cam = self.rectifier(cam)
 
         heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
-        heatmap[np.where(cam < threshold)] = 0
+
+        if adaptive_grads:
+            heatmap[cam < np.median(cam[cam > 0])] = 0
 
         # Apply heatmap to original image
-        rgb = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-        output = cv2.addWeighted(rgb, 1, heatmap, 0.4, 0)
+        output = cv2.addWeighted(im, 1, heatmap, 0.4, 0)
+        output = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
 
         if draw_pred:
-            xshift = int(line_len * np.sin(np.deg2rad(90 + 25*angle)))
-            yshift = int(line_len * np.cos(np.deg2rad(90 + 25*angle)))
-            output = cv2.line(output, (w//2, h), (w//2 - xshift, h - yshift), color=(0, 0, 255), thickness=line_thk)
+            xshift = int(line_len * np.sin(np.deg2rad(25*angle)))
+            yshift = -int(line_len * np.cos(np.deg2rad(25*angle)))
+            output = cv2.line(output, (w//2, h), (w//2 + xshift, h + yshift), color=(0, 0, 255), thickness=line_thk)
         if draw_ground_truth:
             if ground_truth is None:
                 raise ValueError('Ground truth steering angle cannot be None.')
-            xshift = int(line_len * np.sin(np.deg2rad(90 + 25*ground_truth)))
-            yshift = int(line_len * np.cos(np.deg2rad(90 + 25*ground_truth)))
-            output = cv2.line(output, (w//2, h), (w//2 - xshift, h - yshift), color=(0, 255, 0), thickness=line_thk)
+            xshift = int(line_len * np.sin(np.deg2rad(25*ground_truth)))
+            yshift = -int(line_len * np.cos(np.deg2rad(25*ground_truth)))
+            output = cv2.line(output, (w//2, h), (w//2 + xshift, h + yshift), color=(0, 255, 0), thickness=line_thk)
         return output
 
     def _grad_cam_loss(self, gradients, angle, threshold):
@@ -339,6 +345,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Load the model from the args.
+    sys.stdout.write('Loading the model...\n')
     with open(args.dir + args.json, 'r') as jfile:
         model = model_from_json(jfile.read())
     model.compile("adam", "mse")
@@ -350,12 +357,14 @@ if __name__ == '__main__':
         sys.exit()
 
     activation = VisualizeActivations(model=model, preprocessor=processor, rectifier=rectifier)
+
+    sys.stdout.write('Loading the data...\n')
     data = load_data(args.dir + 'Data/Center/', args.log)
 
     # Clip the number of frames, if requested.
     if args.num_frames is not None:
-        data['center'] = data['center'][:args.num_frames]
-        data['angles'] = data['angles'][:args.num_frames]
+        data['center'] = data['center'][:int(args.num_frames)]
+        data['angles'] = data['angles'][:int(args.num_frames)]
 
     # Load and process the frames
     frames = []
