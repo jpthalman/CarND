@@ -15,12 +15,10 @@ I think that the example below is pretty self explanatory. If you have any quest
 free to reach out to me at `jpthalman@gmail.com`.
 
 (This will output a summary for the model, from which you can get the layer name)
-python visualize.py --json model.json
-                    --h5 model.h5
+python visualize.py --h5 model.h5
                     --layer-names
 
-python visualize.py --json model.json
-                    --h5 model.h5
+python visualize.py --h5 model.h5
                     --log Data/driving_log.csv  (The CSV is in the `Data` subdir)
                     --layer convolution2d_4     (Chosen from the above command)
                     --fps 10                    (defaults to 15)
@@ -36,9 +34,6 @@ come out weird (I haven't tested it).
 
 ARGUMENTS
 ---------
-
-`--json`:
-        The filepath to the JSON file for the model.
 `--h5`:
         The filepath to the H5 file for the model.
 `--log`:
@@ -69,7 +64,7 @@ import pandas as pd
 from moviepy.editor import ImageSequenceClip, VideoFileClip
 
 import keras.backend as K
-from keras.models import model_from_json
+from keras.models import load_model
 
 
 # Force keras into testing mode so it doesn't complain
@@ -84,7 +79,7 @@ def processor(im):
     """
     Takes in a raw image and performs every action necessary to feed it into your model.
     """
-    im = im[40:135, :]
+    im = im[50:135, :]
     im = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
     return cv2.resize(im, (64, 64))
 
@@ -95,8 +90,8 @@ def rectifier(im):
     Note that if any cropping was performed, you should transform the image back into the cropped
     space and pad the result with zeros to get back to the original shape.
     """
-    resized = cv2.resize(im, (320, 95))
-    top_padding = np.zeros([40, 320])
+    resized = cv2.resize(im, (320, 85))
+    top_padding = np.zeros([50, 320])
     bot_padding = np.zeros([25, 320])
     output = np.concatenate((top_padding, resized, bot_padding))
     return output
@@ -143,7 +138,8 @@ class VisualizeActivations(object):
                    infile_path,
                    outfile_path,
                    layer_name,
-                   threshold=0.2,
+                   max_frames,
+                   threshold=0.1,
                    draw_pred=True,
                    draw_ground_truth=False,
                    ground_truth=None,
@@ -159,6 +155,7 @@ class VisualizeActivations(object):
         :param infile_path: Path to the video file. Must be a MP4.
         :param outfile_path: Path to save the processed video to.
         :param layer_name: The name of the layer in the Keras ConvNet to visualize.
+        :param max_frames: The maximum number of frames to process.
         :param threshold: Value in (0.0, 1.0). Will remove any activation below this threshold from the heatmap.
         :param draw_pred: Boolean. Whether or not to draw the predicted steering angle onto the image
         :param draw_ground_truth: Boolean. Whether or not to draw the ground truth angle onto the image.
@@ -170,20 +167,25 @@ class VisualizeActivations(object):
         if threshold == 0:
             raise ValueError('Threshold must be above zero.')
 
+        if max_frames is None:
+            max_frames = np.inf
+
         original = VideoFileClip(infile_path)
 
         frames = []
-        for frame in original.iter_frames():
-            frames.append(self.heat_map(
-                layer_name=layer_name,
-                img_path=frame,
-                threshold=threshold,
-                draw_pred=draw_pred,
-                draw_ground_truth=draw_ground_truth,
-                ground_truth=ground_truth,
-                line_len=line_len,
-                line_thk=line_thk
-            ))
+        for i, frame in enumerate(original.iter_frames()):
+            if i < max_frames:
+                frames.append(self.heat_map(
+                    layer_name=layer_name,
+                    img_path=frame,
+                    threshold=threshold,
+                    draw_pred=draw_pred,
+                    draw_ground_truth=draw_ground_truth,
+                    ground_truth=ground_truth,
+                    line_len=line_len,
+                    line_thk=line_thk
+                ))
+            else: break
 
         processed = ImageSequenceClip(frames, fps=original.fps)
         processed.write_videofile(outfile_path)
@@ -328,9 +330,9 @@ def load_data(path, file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--json', help='The filepath to the JSON file for the model.')
     parser.add_argument('--h5', help='The filepath to the H5 file for the model.')
-    parser.add_argument('--log', help='The filepath to driving_log.csv')
+    parser.add_argument('--log', default=None, help='The filepath to driving_log.csv')
+    parser.add_argument('--video', default=None, help='The filepath to the driving video.')
     parser.add_argument('--layer', help='Name of the Conv Layer of which to visualize the activations')
     parser.add_argument('--fps', default=15, help='FPS for output video')
     parser.add_argument('--num-frames', default=None,
@@ -346,10 +348,7 @@ if __name__ == '__main__':
 
     # Load the model from the args.
     sys.stdout.write('Loading the model...\n')
-    with open(args.dir + args.json, 'r') as jfile:
-        model = model_from_json(jfile.read())
-    model.compile("adam", "mse")
-    model.load_weights(args.h5)
+    model = load_model(args.h5)
 
     # Print layer names and exit, if requested.
     if args.layer_names:
@@ -359,21 +358,39 @@ if __name__ == '__main__':
     activation = VisualizeActivations(model=model, preprocessor=processor, rectifier=rectifier)
 
     sys.stdout.write('Loading the data...\n')
-    data = load_data(args.dir + 'Data/Center/', args.log)
 
-    # Clip the number of frames, if requested.
-    if args.num_frames is not None:
-        data['center'] = data['center'][:int(args.num_frames)]
-        data['angles'] = data['angles'][:int(args.num_frames)]
+    if args.log is not None:
+        data = load_data(args.dir + 'Data/Center/', args.log)
 
-    # Load and process the frames
-    frames = []
-    for im_path, angle in zip(data['center'], data['angles']):
-        frames.append(activation.heat_map(layer_name=args.layer,
-                                          img_path=im_path,
-                                          draw_ground_truth=args.draw_ground_truth,
-                                          ground_truth=angle))
+        # Clip the number of frames, if requested.
+        if args.num_frames is not None:
+            data['center'] = data['center'][:int(args.num_frames)]
+            data['angles'] = data['angles'][:int(args.num_frames)]
 
-    # Convert the frames to a video and save
-    video = ImageSequenceClip(frames, fps=args.fps)
-    video.write_videofile('activation_heatmap.mp4')
+        # Load and process the frames
+        frames = []
+        for im_path, angle in zip(data['center'], data['angles']):
+            frames.append(activation.heat_map(layer_name=args.layer,
+                                              img_path=im_path,
+                                              draw_ground_truth=args.draw_ground_truth,
+                                              ground_truth=angle))
+
+        # Convert the frames to a video and save
+        video = ImageSequenceClip(frames, fps=args.fps)
+        video.write_videofile('activation_heatmap.mp4')
+
+    elif args.video is not None:
+        activation.from_video(
+            infile_path=args.video,
+            outfile_path='activation_heatmap.mp4',
+            layer_name=args.layer,
+            max_frames=args.num_frames,
+            threshold=0.1,
+            draw_pred=True,
+            line_len=50,
+            line_thk=2)
+
+    else:
+        raise ValueError('You must provide some data!')
+
+
