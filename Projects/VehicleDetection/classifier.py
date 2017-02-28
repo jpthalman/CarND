@@ -12,6 +12,11 @@ from VehicleDetection.processing import extract_features
 
 
 def load_data():
+    """
+    Loads the Car and Not-Car data from the`Data` directory and scales the features.
+
+    :return: Dictionary with keys ['features', 'labels', 'scaler', 'v_cnt', 'nv_cnt'].
+    """
     cwd = os.getcwd() + '/VehicleDetection/Data/'
     vehicle_folders = [
         'vehicles/GTI_Far/',
@@ -47,12 +52,19 @@ def load_data():
 
 
 def shuffle_and_split(data):
+    """
+    Expects `data` to be in the form of `load_data`s return dict.
+    """
     features, labels = shuffle(data['features'], data['labels'])
     X_train, X_test, y_train, y_test = train_test_split(features, labels)
     return X_train, X_test, y_train, y_test
 
 
 def train():
+    """
+    Loads and splits the training data, trains a linear SVM on it, evaluates it's perfromance, and returns the
+    model along with the associated scaler for the features.
+    """
     print('Loading the data...')
     t = time.clock()
 
