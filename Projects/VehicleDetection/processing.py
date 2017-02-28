@@ -10,30 +10,46 @@ from skimage.feature import hog
 # Define a function to return HOG features and visualization
 def get_hog_features(img, orient=9, pix_per_cell=8, cell_per_block=2,
                      vis=False, feature_vec=True):
-    # Call with two outputs if vis==True
+    """
+    Takes in a color channel of an image and returns the HOG features and optionally a visualization.
+
+    :param img: Single color channel image
+    :param orient: Number of bins to group the gradients for each cell
+    :param pix_per_cell: Number of pixels per cell
+    :param cell_per_block: Number of cells ber block
+    :param vis: Boolean. Returns `features, hog_image` instead of only `features` if true.
+    :param feature_vec: Boolean. Whether or not to flatten the HOG features.
+    """
     if vis:
-        features, hog_image = hog(img,
-                                  orientations=orient,
-                                  pixels_per_cell=(pix_per_cell, pix_per_cell),
-                                  cells_per_block=(cell_per_block, cell_per_block),
-                                  transform_sqrt=True,
-                                  visualise=vis,
-                                  feature_vector=feature_vec)
+        features, hog_image = hog(
+            img,
+            orientations=orient,
+            pixels_per_cell=(pix_per_cell, pix_per_cell),
+            cells_per_block=(cell_per_block, cell_per_block),
+            transform_sqrt=True,
+            visualise=vis,
+            feature_vector=feature_vec)
         return features, hog_image
-    # Otherwise call with one output
     else:
-        features = hog(img,
-                       orientations=orient,
-                       pixels_per_cell=(pix_per_cell, pix_per_cell),
-                       cells_per_block=(cell_per_block, cell_per_block),
-                       transform_sqrt=True,
-                       visualise=vis,
-                       feature_vector=feature_vec)
+        features = hog(
+            img,
+            orientations=orient,
+            pixels_per_cell=(pix_per_cell, pix_per_cell),
+            cells_per_block=(cell_per_block, cell_per_block),
+            transform_sqrt=True,
+            visualise=vis,
+            feature_vector=feature_vec)
         return features
 
 
 # Define a function to compute binned color features
 def bin_spatial(img, size=(16, 16)):
+    """
+    Resize the image and return the color values for each pixel in a flattened array.
+
+    :param img: Image to analyze
+    :param size: Tuple with values indicating shape to resize image to
+    """
     # Use cv2.resize().ravel() to create the feature vector
     features = cv2.resize(img, size).ravel()
     # Return the feature vector
@@ -43,6 +59,13 @@ def bin_spatial(img, size=(16, 16)):
 # Define a function to compute color histogram features
 # NEED TO CHANGE bins_range if reading .png files with mpimg!
 def color_hist(img, nbins=32):
+    """
+    Compute the histogram of color intensity for each channel of the image.
+
+    :param img: Input image
+    :param nbins: Number of histogram bins for each image
+    :return: Array of len 3*nbins
+    """
     # Compute the histogram of the color channels separately
     channel1_hist = np.histogram(img[:, :, 0], bins=nbins)
     channel2_hist = np.histogram(img[:, :, 1], bins=nbins)
@@ -65,6 +88,23 @@ def single_img_features(img,
                         spatial_feat=True,
                         hist_feat=True,
                         hog_feat=True):
+    """
+    Function to apply all feature analyses and concatenate their results.
+
+    :param img: Input image
+    :param hog_img: Precomputed gradients for input image
+    :param color_space: Color space to transform the image to
+    :param spatial_size: Size transform tuple for the spatial features
+    :param hist_bins: Number of histogram bins for color_hist
+    :param orient: Number of gradient bins for HOG features
+    :param pix_per_cell: For HOG features
+    :param cell_per_block: For HOG features
+    :param hog_channel: Channel number to perform HOG analysis on. Can be 'ALL'.
+    :param spatial_feat: Boolean.
+    :param hist_feat: Boolean.
+    :param hog_feat: Boolean.
+    :return:
+    """
     # 1) Define an empty list to receive features
     img_features = []
 
@@ -121,6 +161,9 @@ def single_img_features(img,
 
 
 def extract_features(imgs):
+    """
+    Extract features from an array of images.
+    """
     features = []
     for file in imgs:
         image = cv2.imread(file)
@@ -129,57 +172,17 @@ def extract_features(imgs):
     return features
 
 
-def get_windows(x_start_stop=(0, 1280), y_start_stop=(400, 650)):
-    windows_a = slide_window_helper(x_start_stop, y_start_stop, window_size=[128, 128])
-    windows_b = slide_window_helper(x_start_stop, y_start_stop, window_size=[64, 64])
-    windows_c = slide_window_helper(x_start_stop, y_start_stop, window_size=[32, 32])
-    return windows_a + windows_b + windows_c
-
-
-def slide_window_helper(x_start_stop=(None, None), y_start_stop=(None, None), window_size=(96, 64)):
-    window_size_x = window_size[0]
-    window_size_y = window_size[1]
-    xy_overlap = (0.5, 0.5)
-
-    # Compute the span of the region to be searched
-    xspan = x_start_stop[1] - x_start_stop[0]
-    yspan = y_start_stop[1] - y_start_stop[0]
-    # Compute the number of pixels per step in x/y
-    nx_pix_per_step = np.int(window_size_x * (1 - xy_overlap[0]))
-    ny_pix_per_step = np.int(window_size_y * (1 - xy_overlap[1]))
-    # Compute the number of windows in x/y
-    nx_windows = np.int(xspan / nx_pix_per_step) - 2
-    ny_windows = np.int(yspan / ny_pix_per_step) - 2
-    # Initialize a list to append window positions to
-    window_list = []
-
-    ys = y_start_stop[0]
-    while ys + window_size_y < y_start_stop[1]:
-        xs = x_start_stop[0]
-        while xs < x_start_stop[1]:
-            # Calculate window position
-            endx = xs + window_size_x
-            endy = ys + window_size_y
-
-            # Append window position to list
-            window_list.append(((xs, ys), (endx, endy), window_size))
-
-            xs += nx_pix_per_step
-        window_size_x = int(window_size_x * 1.3)
-        window_size_y = int(window_size_y * 1.3)
-        nx_pix_per_step = np.int(window_size_x * (1 - xy_overlap[0]))
-        ny_pix_per_step = np.int(window_size_y * (1 - xy_overlap[1]))
-        ys += ny_pix_per_step
-    return window_list
-
-
-# Define a function to draw bounding boxes
 def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
-    # Make a copy of the image
+    """
+    Helper function to draw regions of interest onto an image.
+
+    :param img: Image to draw on
+    :param bboxes: List of ROI's to draw
+    :param color: Color to make the boxes on the image
+    :param thick: Thickness of the boxes to draw
+    :return: Annotated image
+    """
     imcopy = np.copy(img)
-    # Iterate through the bounding boxes
     for bbox in bboxes:
-        # Draw a rectangle given bbox coordinates
         cv2.rectangle(imcopy, bbox[0], bbox[1], color, thick)
-    # Return the image copy with boxes drawn
     return imcopy
