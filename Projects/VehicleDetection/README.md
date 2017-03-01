@@ -99,4 +99,4 @@ To solve the car identification issue above, we use `scipy.ndimage.measurements.
 
 The performance of this method on a video is under `project_video_output.jpg`.
 
-The performance of this method has a lot of room for improvement. It does not always draw a complete box over the car, at times it cannot distinguish between two adjacent cars, and it is extremely slow at processing the video. In the future, I would like to investigate a less involved solution to this problem, potentially involving Convolutional Neural Networks.
+This method has a lot of room for improvement. It does not always draw a complete box over the car, at times it cannot distinguish between two adjacent cars, and it is extremely slow at processing the video. In the future, I would like to investigate a less involved solution to this problem, potentially involving Convolutional Neural Networks.
