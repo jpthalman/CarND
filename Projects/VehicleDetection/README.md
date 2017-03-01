@@ -25,7 +25,7 @@ Here are links to the labeled data for [vehicle](https://s3.amazonaws.com/udacit
 
 A major challenge in identifying the locations of cars in an image is the change in apparent size that happens as a car gets further away. We need to define a method to detect cars that is translation and scale invariant, and that is robust enough to identify 0+ cars.
 
-The method I chose to accomplish this task is the sliding window search technique. In this method, I define a search region on the Y-axis which excludes all portions of the image which don't include the road. Within this region, I take 64x64 pixel sub-images, extract their features (process to be defined below), and feed them into the model to see if they contain a car. These sub-images are stepped along the region-of-interest (ROI) with step size of 16 pixels. This method of searching allows very good coverage of the ROI, along with a reasonably sized search grid which will hopefull classify any regions in the image that contain a car.
+The method I chose to accomplish this task is the sliding window search technique. In this method, I define a search region on the Y-axis which excludes all portions of the image which don't include the road. Within this region, I take 64x64 pixel sub-images, extract their features (process to be defined below), and feed them into the model to see if they contain a car. These sub-images are stepped along the region-of-interest (ROI) with step size of 16 pixels. This method of searching allows very good coverage of the ROI, along with a reasonably sized search grid which will hopefully correctly classify any regions in the image that contain a car.
 
 An example of the regions that this method is looking at is below:
 
@@ -99,4 +99,4 @@ To solve the car identification issue above, we use `scipy.ndimage.measurements.
 
 The performance of this method on a video is under `project_video_output.jpg`.
 
-This method has a lot of room for improvement. It does not always draw a complete box over the car, at times it cannot distinguish between two adjacent cars, and it is extremely slow at processing the video. In the future, I would like to investigate a less involved solution to this problem, potentially involving Convolutional Neural Networks.
+This method has a lot of room for improvement. It does not always draw a complete box over the car, at times it cannot distinguish between two adjacent cars, and it is extremely slow at processing the video. Additionally, it is noticeably worse at detecting lighter colored cars, potentially leading to failure under non-ideal conditions, such as high road glare. In the future, I would like to investigate a less involved solution to this problem, potentially involving Convolutional Neural Networks.
